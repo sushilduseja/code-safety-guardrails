@@ -1,0 +1,16 @@
+validators:
+  - id: sql-injection-check
+    on_fail: exception
+  - id: command-execution-check
+    on_fail: exception
+  - id: secrets-scanner-check
+    on_fail: fix
+  - id: malicious-imports-check
+    on_fail: exception
+output:
+  type: string
+  validators:
+    - sql-injection-check
+    - command-execution-check
+    - secrets-scanner-check
+    - malicious-imports-check

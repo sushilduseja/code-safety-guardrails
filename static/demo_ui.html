@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Code Safety Guardrails Demo</title>
+    <style>
+      body {
+        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+        margin: 0;
+        padding: 1rem;
+      }
+      .container {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 1rem;
+        height: 90vh;
+      }
+      textarea {
+        width: 100%;
+        height: 200px;
+      }
+      pre {
+        background: #111827;
+        color: #e5e7eb;
+        padding: 1rem;
+        overflow: auto;
+        height: 100%;
+      }
+      .status-pass {
+        color: #16a34a;
+      }
+      .status-fail {
+        color: #dc2626;
+      }
+    </style>
+  </head>
+  <body>
+    <h1>Code Safety Guardrails Demo</h1>
+    <div>
+      <label>
+        Prompt
+        <br />
+        <textarea id="prompt"></textarea>
+      </label>
+      <br />
+      <label>
+        Language
+        <select id="language">
+          <option value="python">Python</option>
+          <option value="javascript">JavaScript</option>
+          <option value="sql">SQL</option>
+        </select>
+      </label>
+      <button id="generate">Generate Code</button>
+      <span id="status"></span>
+    </div>
+    <div class="container">
+      <div>
+        <h2>Generated Code</h2>
+        <pre id="code"></pre>
+      </div>
+      <div>
+        <h2>Validation Report</h2>
+        <pre id="report"></pre>
+      </div>
+    </div>
+    <script>
+      async function generate() {
+        const prompt = document.getElementById('prompt').value;
+        const language = document.getElementById('language').value;
+        const status = document.getElementById('status');
+        status.textContent = 'Loading...';
+
+        const resp = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, language }),
+        });
+
+        const data = await resp.json();
+        document.getElementById('code').textContent = data.code || '';
+        document.getElementById('report').textContent = JSON.stringify(
+          data.validation_report,
+          null,
+          2,
+        );
+        status.textContent = data.passed ? 'Passed' : 'Failed';
+        status.className = data.passed ? 'status-pass' : 'status-fail';
+      }
+
+      document.getElementById('generate').addEventListener('click', generate);
+    </script>
+  </body>
+</html>
