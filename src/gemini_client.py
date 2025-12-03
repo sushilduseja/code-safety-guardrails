@@ -8,7 +8,7 @@ from config.prompts import SYSTEM_PROMPT
 
 load_dotenv()
 
-MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.0-flash-exp")
+MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
 
 
 class GeminiClient:

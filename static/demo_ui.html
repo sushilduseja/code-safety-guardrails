@@ -1,94 +1,250 @@
 <!DOCTYPE html>
 <html lang="en">
-  <head>
-    <meta charset="UTF-8" />
-    <title>Code Safety Guardrails Demo</title>
-    <style>
-      body {
-        font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-        margin: 0;
-        padding: 1rem;
-      }
-      .container {
-        display: grid;
-        grid-template-columns: 1fr 1fr;
-        gap: 1rem;
-        height: 90vh;
-      }
-      textarea {
-        width: 100%;
-        height: 200px;
-      }
-      pre {
-        background: #111827;
-        color: #e5e7eb;
-        padding: 1rem;
-        overflow: auto;
-        height: 100%;
-      }
-      .status-pass {
-        color: #16a34a;
-      }
-      .status-fail {
-        color: #dc2626;
-      }
-    </style>
-  </head>
-  <body>
-    <h1>Code Safety Guardrails Demo</h1>
-    <div>
-      <label>
-        Prompt
-        <br />
-        <textarea id="prompt"></textarea>
-      </label>
-      <br />
-      <label>
-        Language
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Code Safety Guardrails Demo</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      min-height: 100vh;
+      padding: 2rem;
+    }
+    .container {
+      max-width: 1400px;
+      margin: 0 auto;
+      background: white;
+      border-radius: 12px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      overflow: hidden;
+      display: flex;
+      height: 90vh;
+    }
+    .header {
+      grid-column: 1 / -1;
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+    .header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
+    .header p { opacity: 0.9; }
+    .controls {
+      flex: 0 0 350px;
+      padding: 2rem;
+      border-right: 1px solid #e5e7eb;
+      display: flex;
+      flex-direction: column;
+      gap: 1.5rem;
+      overflow-y: auto;
+      background: #f9fafb;
+    }
+    .form-group {
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+    }
+    .form-group label {
+      font-weight: 600;
+      color: #374151;
+      font-size: 0.95rem;
+    }
+    .form-group textarea,
+    .form-group select {
+      padding: 0.75rem;
+      border: 2px solid #e5e7eb;
+      border-radius: 6px;
+      font-family: monospace;
+      font-size: 0.9rem;
+      transition: border-color 0.2s;
+    }
+    .form-group textarea:focus,
+    .form-group select:focus {
+      outline: none;
+      border-color: #667eea;
+      background: white;
+    }
+    .form-group textarea { min-height: 120px; resize: vertical; }
+    button {
+      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      color: white;
+      border: none;
+      padding: 0.875rem 1.5rem;
+      border-radius: 6px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform 0.2s, box-shadow 0.2s;
+      font-size: 1rem;
+    }
+    button:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4); }
+    button:active { transform: translateY(0); }
+    .output {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+    .output-section {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 2rem;
+      border-right: 1px solid #e5e7eb;
+      overflow: hidden;
+    }
+    .output-section:last-child { border-right: none; }
+    .output-section h2 {
+      font-size: 1.1rem;
+      color: #374151;
+      margin-bottom: 1rem;
+      font-weight: 600;
+    }
+    pre {
+      background: #1f2937;
+      color: #f3f4f6;
+      padding: 1.5rem;
+      border-radius: 6px;
+      overflow: auto;
+      flex: 1;
+      font-size: 0.85rem;
+      line-height: 1.5;
+    }
+    .status {
+      padding: 0.75rem 1rem;
+      border-radius: 6px;
+      font-weight: 600;
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .status.loading { background: #fef3c7; color: #92400e; }
+    .status.pass { background: #dcfce7; color: #166534; }
+    .status.fail { background: #fee2e2; color: #991b1b; }
+    .examples {
+      max-height: 200px;
+      overflow-y: auto;
+      background: #f0f4ff;
+      padding: 1rem;
+      border-radius: 6px;
+      margin-top: 1rem;
+    }
+    .example-item {
+      padding: 0.75rem;
+      margin: 0.5rem 0;
+      background: white;
+      border-left: 3px solid #667eea;
+      cursor: pointer;
+      border-radius: 3px;
+      font-size: 0.85rem;
+      transition: all 0.2s;
+    }
+    .example-item:hover { background: #fffbeb; transform: translateX(4px); }
+  </style>
+</head>
+<body>
+  <div class="header">
+    <h1>🛡️ Code Safety Guardrails</h1>
+    <p>Generate secure code with integrated AI-powered validation</p>
+  </div>
+
+  <div class="container">
+    <div class="controls">
+      <div class="form-group">
+        <label for="prompt">Prompt</label>
+        <textarea id="prompt" placeholder="Describe the code you want to generate..."></textarea>
+      </div>
+
+      <div class="form-group">
+        <label for="language">Language</label>
         <select id="language">
           <option value="python">Python</option>
           <option value="javascript">JavaScript</option>
           <option value="sql">SQL</option>
+          <option value="java">Java</option>
+          <option value="typescript">TypeScript</option>
         </select>
-      </label>
+      </div>
+
+      <div class="form-group">
+        <label for="strict">
+          <input type="checkbox" id="strict">
+          Strict Mode (block network imports)
+        </label>
+      </div>
+
       <button id="generate">Generate Code</button>
-      <span id="status"></span>
+      <div id="status" class="status" style="display:none;"></div>
+
+      <div class="examples">
+        <strong style="color:#374151; font-size:0.9rem;">Quick Examples:</strong>
+        <div class="example-item" onclick="setExample('Write a Python function to check if a number is prime')">Python: Prime checker</div>
+        <div class="example-item" onclick="setExample('Create a JavaScript function to capitalize a string')">JS: Capitalize string</div>
+        <div class="example-item" onclick="setExample('Write a Python function to merge two sorted lists')">Python: Merge lists</div>
+        <div class="example-item" onclick="setExample('Create a function to validate email addresses')">Validate email</div>
+      </div>
     </div>
-    <div class="container">
-      <div>
+
+    <div class="output">
+      <div class="output-section">
         <h2>Generated Code</h2>
-        <pre id="code"></pre>
+        <pre id="code">// Generated code will appear here...</pre>
       </div>
-      <div>
+      <div class="output-section">
         <h2>Validation Report</h2>
-        <pre id="report"></pre>
+        <pre id="report">// Validation results...</pre>
       </div>
     </div>
-    <script>
-      async function generate() {
-        const prompt = document.getElementById('prompt').value;
-        const language = document.getElementById('language').value;
-        const status = document.getElementById('status');
-        status.textContent = 'Loading...';
+  </div>
 
-        const resp = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, language }),
-        });
+  <script>
+    function setExample(text) {
+      document.getElementById('prompt').value = text;
+    }
 
-        const data = await resp.json();
-        document.getElementById('code').textContent = data.code || '';
-        document.getElementById('report').textContent = JSON.stringify(
-          data.validation_report,
-          null,
-          2,
-        );
-        status.textContent = data.passed ? 'Passed' : 'Failed';
-        status.className = data.passed ? 'status-pass' : 'status-fail';
+    async function generate() {
+      const prompt = document.getElementById('prompt').value.trim();
+      if (!prompt) {
+        alert('Please enter a prompt');
+        return;
       }
 
-      document.getElementById('generate').addEventListener('click', generate);
-    </script>
-  </body>
+      const language = document.getElementById('language').value;
+      const strict = document.getElementById('strict').checked;
+      const status = document.getElementById('status');
+
+      status.textContent = 'Generating...';
+      status.className = 'status loading';
+      status.style.display = 'block';
+
+      try {
+        const response = await fetch('/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ prompt, language, strict })
+        });
+
+        const data = await response.json();
+
+        document.getElementById('code').textContent = data.code || 'No code generated';
+        document.getElementById('report').textContent = JSON.stringify(
+          { passed: data.passed, issues: data.issues, timestamp: new Date().toISOString() },
+          null, 2
+        );
+
+        status.textContent = data.passed ? '✅ Validation Passed' : '⚠️ Validation Failed';
+        status.className = `status ${data.passed ? 'pass' : 'fail'}`;
+      } catch (error) {
+        document.getElementById('code').textContent = 'Error: ' + error.message;
+        status.textContent = '❌ Error';
+        status.className = 'status fail';
+      }
+    }
+
+    document.getElementById('generate').addEventListener('click', generate);
+    document.getElementById('prompt').addEventListener('keydown', (e) => {
+      if (e.ctrlKey && e.key === 'Enter') generate();
+    });
+  </script>
+</body>
 </html>

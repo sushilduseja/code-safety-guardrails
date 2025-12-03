@@ -1,44 +1,50 @@
+"""Secrets detection and redaction via Guardrails validator."""
+
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
-AWS_ACCESS_KEY_PATTERN = re.compile(r"AKIA[0-9A-Z]{16}")
-GITHUB_TOKEN_PATTERN = re.compile(r"ghp_[a-zA-Z0-9]{36}")
-HARDCODED_PASSWORD_PATTERN = re.compile(
-    r"password\s*=\s*(['\"])[^\1]+\1", re.IGNORECASE
+from guardrails.validators import (
+    FailResult,
+    PassResult,
+    ValidationResult,
+    Validator,
+    register_validator,
 )
-PRIVATE_KEY_PATTERN = re.compile(r"-----BEGIN[ A-Z]*PRIVATE KEY-----")
 
 
-def _redact_secrets(code: str) -> str:
-    """Naively redact detected secrets by replacing with ***.
+@register_validator(name="code/secrets_exposure", data_type="string")
+class SecretsValidator(Validator):
+    """Detects and auto-redacts hardcoded secrets."""
 
-    This is a best-effort sanitizer for demo purposes.
-    """
+    SECRET_PATTERNS = {
+        r'AKIA[0-9A-Z]{16}': ("AWS Access Key", "AKIA****"),
+        r'(?:ghp|gho|ghu|ghs|ghr)_[a-zA-Z0-9]{36,}': ("GitHub Token", "gh*_****"),
+        r'sk-[a-zA-Z0-9]{32,}': ("OpenAI Key", "sk-****"),
+        r'xox[baprs]-[a-zA-Z0-9-]+': ("Slack Token", "xox*-****"),
+        r'-----BEGIN (?:RSA |DSA |EC )?PRIVATE KEY-----': ("Private Key", "[REDACTED]"),
+        r'(?i)(?:password|passwd)\s*=\s*["\'][^"\']{4,}["\']': ("Hardcoded Password", 'password="***"'),
+        r'(?i)(?:api_key|apikey)\s*=\s*["\'][^"\']{8,}["\']': ("API Key", 'api_key="***"'),
+    }
 
-    redacted = AWS_ACCESS_KEY_PATTERN.sub("AKIA****************", code)
-    redacted = GITHUB_TOKEN_PATTERN.sub("ghp_********************************", redacted)
-    redacted = HARDCODED_PASSWORD_PATTERN.sub("password = \"***\"", redacted)
-    redacted = PRIVATE_KEY_PATTERN.sub("-----BEGIN PRIVATE KEY-----", redacted)
-    return redacted
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
+    def validate(
+        self, value: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Detect secrets and provide redacted version."""
+        issues = []
+        redacted = value
 
-def validate_secrets(code: str) -> Dict[str, Any]:
-    """Scan for likely secrets and attempt redaction.
+        for pattern, (desc, replacement) in self.SECRET_PATTERNS.items():
+            if re.search(pattern, value):
+                issues.append(desc)
+                redacted = re.sub(pattern, replacement, redacted)
 
-    Returns dict with `passed`, `issues`, and `sanitized_code`.
-    """
+        if issues:
+            return FailResult(
+                error_message=f"Secrets detected: {', '.join(issues)}",
+                fix_value=redacted
+            )
 
-    issues: List[str] = []
-
-    if AWS_ACCESS_KEY_PATTERN.search(code):
-        issues.append("Possible AWS access key detected.")
-    if GITHUB_TOKEN_PATTERN.search(code):
-        issues.append("Possible GitHub token detected.")
-    if HARDCODED_PASSWORD_PATTERN.search(code):
-        issues.append("Possible hardcoded password detected.")
-    if PRIVATE_KEY_PATTERN.search(code):
-        issues.append("Private key material detected.")
-
-    sanitized_code = _redact_secrets(code) if issues else code
-
-    return {"passed": len(issues) == 0, "issues": issues, "sanitized_code": sanitized_code}
+        return PassResult()

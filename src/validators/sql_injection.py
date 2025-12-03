@@ -1,37 +1,54 @@
+"""SQL Injection detection via Guardrails validator."""
+
 import re
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
-SQL_DANGEROUS_PATTERN = re.compile(
-    r"(DROP|DELETE|TRUNCATE|INSERT|UPDATE)\s+.+WHERE.+=.+",
-    re.IGNORECASE | re.DOTALL,
-)
-
-SQL_STRING_CONCAT_PATTERN = re.compile(
-    r"SELECT.+[\"']\s*\+\s*\w+\s*\+\s*[\"']",
-    re.IGNORECASE | re.DOTALL,
-)
-
-SQL_FSTRING_PATTERN = re.compile(
-    r"f\"\s*SELECT.+FROM.+\"|f'\s*SELECT.+FROM.+'",
-    re.IGNORECASE | re.DOTALL,
+from guardrails.validators import (
+    FailResult,
+    PassResult,
+    ValidationResult,
+    Validator,
+    register_validator,
 )
 
 
-def validate_sql_injection(code: str) -> Dict[str, Any]:
-    """Detect basic SQL injection-prone patterns.
+@register_validator(name="code/sql_injection", data_type="string")
+class SQLInjectionValidator(Validator):
+    """Detects SQL injection vulnerabilities in generated code."""
 
-    Returns a dict with `passed` and `issues` list.
-    """
+    UNSAFE_PATTERNS = [
+        (re.compile(r'f["\'`].*(?:SELECT|INSERT|UPDATE|DELETE).*\{.*\}', re.I | re.S), "f-string SQL"),
+        (re.compile(r'SELECT.+["\']\\s*\\+\\s*\\w+\\s*\\+\\s*["\']', re.I | re.S), "string concatenation"),
+        (re.compile(r'\.format\s*\(.*\).*(?:SELECT|INSERT|UPDATE|DELETE)', re.I | re.S), ".format() SQL"),
+        (re.compile(r'execute\s*\(\s*["\'].*%s', re.I), "unsafe execute format"),
+    ]
 
-    issues: List[str] = []
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
 
-    if SQL_DANGEROUS_PATTERN.search(code):
-        issues.append("Potentially dangerous SQL modification with WHERE clause.")
+    def validate(
+        self, value: str, metadata: Optional[Dict[str, Any]] = None
+    ) -> ValidationResult:
+        """Check for unsafe SQL patterns."""
+        issues = []
 
-    if SQL_STRING_CONCAT_PATTERN.search(code):
-        issues.append("SQL query appears to use string concatenation.")
+        for pattern, desc in self.UNSAFE_PATTERNS:
+            if pattern.search(value):
+                issues.append(f"Unsafe pattern: {desc}")
 
-    if SQL_FSTRING_PATTERN.search(code):
-        issues.append("SQL query appears to be constructed via f-string.")
+        if issues:
+            safe_code = self._generate_safe_version(value)
+            return FailResult(
+                error_message=f"SQL injection risk: {'; '.join(issues)}",
+                fix_value=safe_code
+            )
+        return PassResult()
 
-    return {"passed": len(issues) == 0, "issues": issues}
+    def _generate_safe_version(self, code: str) -> str:
+        """Convert unsafe SQL to parameterized queries."""
+        code = re.sub(
+            r'f"SELECT \* FROM (\w+) WHERE (\w+) = \{(\w+)\}"',
+            r'"SELECT * FROM \1 WHERE \2 = ?"  # Use parameterized query with (\3,)',
+            code
+        )
+        return code + "\n# SECURITY: Use parameterized queries to prevent SQL injection"
