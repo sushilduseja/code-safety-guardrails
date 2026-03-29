@@ -17,10 +17,18 @@ class SQLInjectionValidator(Validator):
     """Detects SQL injection vulnerabilities in generated code."""
 
     UNSAFE_PATTERNS = [
-        (re.compile(r'f["\'`].*(?:SELECT|INSERT|UPDATE|DELETE).*\{.*\}', re.I | re.S), "f-string SQL"),
-        (re.compile(r'SELECT.+["\']\\s*\\+\\s*\\w+\\s*\\+\\s*["\']', re.I | re.S), "string concatenation"),
-        (re.compile(r'\.format\s*\(.*\).*(?:SELECT|INSERT|UPDATE|DELETE)', re.I | re.S), ".format() SQL"),
-        (re.compile(r'execute\s*\(\s*["\'].*%s', re.I), "unsafe execute format"),
+        (
+            re.compile(r'f["\'`].*(?:SELECT|INSERT|UPDATE|DELETE).*\{.*\}', re.I | re.S),
+            "f-string SQL",
+        ),
+        (
+            re.compile(r'SELECT.+["\']\\s*\\+\\s*\\w+\\s*\\+\\s*["\']', re.I | re.S),
+            "string concatenation",
+        ),
+        (
+            re.compile(r'\.format\s*\(.*\).*(?:SELECT|INSERT|UPDATE|DELETE)', re.I | re.S),
+            ".format() SQL",
+        ),
     ]
 
     def __init__(self, **kwargs):

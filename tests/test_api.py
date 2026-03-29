@@ -92,6 +92,49 @@ def test_generate_fails_closed_when_validation_raises(monkeypatch):
     assert body["issues"][0]["validator"] == "guard"
 
 
+def test_generate_returns_validator_specific_failures(monkeypatch):
+    validation = SimpleNamespace(
+        validated_output="import os\nos.system('ls')",
+        validation_passed=False,
+        validation_logs=[
+            SimpleNamespace(
+                validator_name="CommandExecutionValidator",
+                validation_result=SimpleNamespace(
+                    outcome="fail",
+                    error_message="Dangerous execution: os.system: Arbitrary shell command",
+                ),
+            )
+        ],
+    )
+    monkeypatch.setattr(
+        main_module,
+        "get_gemini_client",
+        lambda: StubGeminiClient("import os\nos.system('ls')"),
+    )
+    monkeypatch.setattr(
+        main_module,
+        "get_guard",
+        lambda strict=False: SimpleNamespace(validate=lambda code: validation),
+    )
+
+    response = request_json(
+        "POST",
+        "/generate",
+        json={"prompt": "write code", "language": "python", "strict": False},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["passed"] is False
+    assert body["issues"] == [
+        {
+            "validator": "CommandExecutionValidator",
+            "message": "Dangerous execution: os.system: Arbitrary shell command",
+            "severity": "error",
+        }
+    ]
+
+
 def test_generate_rejects_unsupported_language():
     response = request_json(
         "POST",

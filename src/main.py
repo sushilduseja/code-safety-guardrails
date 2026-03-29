@@ -115,6 +115,23 @@ def enforce_rate_limit(request: Request) -> None:
     _rate_limit_buckets[client_host] = bucket
 
 
+def extract_validation_issues(validation: Any) -> List[ValidationIssue]:
+    """Convert Guardrails validator logs into stable API response issues."""
+    issues: List[ValidationIssue] = []
+    for log in getattr(validation, "validation_logs", []):
+        result = getattr(log, "validation_result", None)
+        if getattr(result, "outcome", None) != "fail":
+            continue
+        issues.append(
+            ValidationIssue(
+                validator=getattr(log, "validator_name", "unknown"),
+                message=getattr(result, "error_message", "Validation failed"),
+                severity="error",
+            )
+        )
+    return issues
+
+
 @app.get("/health")
 async def health() -> Dict[str, bool | str | int]:
     """Health check endpoint."""
@@ -144,7 +161,6 @@ async def generate(
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    # Get guard with appropriate strict mode
     try:
         guard = get_guard(strict=req.strict)
         validation = guard.validate(raw_code)
@@ -165,22 +181,7 @@ async def generate(
             raw_code=None,
         )
 
-    # Extract validation results from logs
-    issues = []
-    if hasattr(validation, "validation_logs"):
-        for log in validation.validation_logs:
-            if hasattr(log, "validation_result"):
-                result = log.validation_result
-                if hasattr(result, "outcome") and result.outcome == "fail":
-                    validator_name = getattr(log, "validator_name", "unknown")
-                    error_msg = getattr(result, "error_message", "Validation failed")
-                    issues.append(
-                        ValidationIssue(
-                            validator=validator_name,
-                            message=error_msg,
-                            severity="error",
-                        )
-                    )
+    issues = extract_validation_issues(validation)
 
     return GenerateResponse(
         code=validated_code,
