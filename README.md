@@ -26,7 +26,7 @@ Optional:
 uvicorn src.main:app --reload
 ```
 
-Then visit **http://localhost:8000/static/demo_ui.html** for the demo or **http://localhost:8000/docs** for the API docs. The demo page includes an optional API key field for secured deployments.
+Then visit **http://localhost:8000/** for the demo or **http://localhost:8000/docs** for the API docs. The demo page includes optional API key and API base URL fields for local and GitHub Pages deployments.
 
 ## Features
 
@@ -97,6 +97,7 @@ pytest tests -v
 ```
 .impeccable.md
 EXAMPLES.md
+index.html
 README.md
 src/
 |-- main.py
@@ -111,8 +112,6 @@ tests/
 |-- test_api.py
 |-- test_demo_ui.py
 `-- test_validators.py
-static/
-`-- demo_ui.html
 ```
 
 ## Real-World Examples

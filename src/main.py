@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
 from src.gemini_client import GeminiClient
@@ -59,10 +59,6 @@ class GenerateResponse(BaseModel):
 
 
 app = FastAPI(title="Code Safety Guardrails", version="1.0.0")
-try:
-    app.mount("/static", StaticFiles(directory="static"), name="static")
-except Exception as e:
-    logger.warning("Could not mount static files: %s", e)
 
 _gemini_client: Optional[GeminiClient] = None
 _guards: Dict[bool, Any] = {}
@@ -145,6 +141,12 @@ async def health() -> Dict[str, bool | str | int]:
             os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", str(DEFAULT_RATE_LIMIT))
         ),
     }
+
+
+@app.get("/")
+async def index() -> FileResponse:
+    """Serve the portfolio demo from the repository root."""
+    return FileResponse(Path(__file__).parent.parent / "index.html")
 
 
 @app.post("/generate", response_model=GenerateResponse)

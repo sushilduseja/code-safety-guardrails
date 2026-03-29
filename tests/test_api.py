@@ -156,6 +156,13 @@ def test_health_reports_boolean_api_key_status():
     assert isinstance(body["rate_limit_per_minute"], int)
 
 
+def test_root_serves_demo_index():
+    response = request_json("GET", "/")
+
+    assert response.status_code == 200
+    assert "Code Safety Guardrails" in response.text
+
+
 def test_generate_requires_api_key_when_configured(monkeypatch):
     monkeypatch.setenv("CODE_SAFETY_API_KEY", "secret")
 

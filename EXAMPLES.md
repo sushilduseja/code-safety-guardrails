@@ -343,7 +343,7 @@ pytest tests -v
 uvicorn src.main:app --reload
 ```
 
-2. Open browser: **http://localhost:8000/static/demo_ui.html**
+2. Open browser: **http://localhost:8000/**
 
 3. Try these prompts:
 
@@ -358,6 +358,7 @@ uvicorn src.main:app --reload
 - "Write code to query a database" (tests SQL patterns)
 
 If your deployment is secured, fill in the optional API key field before clicking **Generate Code**.
+If the page is hosted on GitHub Pages, set the API Base URL field to the backend host first.
 
 ---
 

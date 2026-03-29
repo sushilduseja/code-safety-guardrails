@@ -403,6 +403,16 @@
           <div class="helper">Leave blank for local development. Add the shared key when testing a secured deployment.</div>
         </div>
 
+        <div class="form-group">
+          <label for="api-base-url">API Base URL</label>
+          <input
+            id="api-base-url"
+            type="url"
+            placeholder="https://your-api.example.com"
+          >
+          <div class="helper">Defaults to the current origin. Set this when the page is hosted on GitHub Pages and the API lives elsewhere.</div>
+        </div>
+
         <button id="generate">Generate Code</button>
         <div id="status" class="status hidden"></div>
 
@@ -435,6 +445,15 @@
       document.getElementById("prompt").value = text;
     }
 
+    function getApiBaseUrl() {
+      const input = document.getElementById("api-base-url");
+      const stored = localStorage.getItem("code-safety-api-base-url");
+      const value = input.value.trim() || stored || window.location.origin;
+      input.value = value;
+      localStorage.setItem("code-safety-api-base-url", value);
+      return value.replace(/\/$/, "");
+    }
+
     async function generate() {
       const prompt = document.getElementById("prompt").value.trim();
       if (!prompt) {
@@ -445,6 +464,7 @@
       const language = document.getElementById("language").value;
       const strict = document.getElementById("strict").checked;
       const apiKey = document.getElementById("api-key").value.trim();
+      const apiBaseUrl = getApiBaseUrl();
       const status = document.getElementById("status");
       const button = document.getElementById("generate");
 
@@ -458,7 +478,7 @@
         if (apiKey) {
           headers["X-API-Key"] = apiKey;
         }
-        const response = await fetch("/generate", {
+        const response = await fetch(`${apiBaseUrl}/generate`, {
           method: "POST",
           headers,
           body: JSON.stringify({ prompt, language, strict })
@@ -502,6 +522,7 @@
         generate();
       }
     });
+    document.getElementById("api-base-url").value = localStorage.getItem("code-safety-api-base-url") || window.location.origin;
   </script>
 </body>
 </html>
