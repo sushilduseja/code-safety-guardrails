@@ -25,7 +25,7 @@ curl -X POST http://localhost:8000/generate \
 }
 ```
 
-**Validators Report:** ✅ All pass
+**Validators Report:** All pass
 - SQL Injection: PASS (no SQL)
 - Command Execution: PASS (no system calls)
 - Secrets: PASS (no credentials)
@@ -72,23 +72,23 @@ cursor.execute(query)
 
 **Validator Output:**
 ```
-❌ FAILED: SQL injection risk
-   Issue: Unsafe pattern: f-string SQL
-   Suggestion: Use parameterized queries instead
-   Fix: cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+FAILED: SQL injection risk
+Issue: Unsafe pattern: f-string SQL
+Suggestion: Use parameterized queries instead
+Fix: cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 ```
 
 ### Example 2b: Safe SQL (Parameterized)
 ```python
 # Code that PASSES validation:
 user_id = input()
-cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
 ```
 
 **Validator Output:**
 ```
-✅ PASSED: SQL injection detector
-   No unsafe patterns detected
+PASSED: SQL injection detector
+No unsafe patterns detected
 ```
 
 ---
@@ -100,29 +100,29 @@ cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
 # Code that WOULD fail validation:
 import os
 username = input()
-os.system(f"echo {username}")  # DANGEROUS - shell injection
+os.system(f"echo {username}")  # Dangerous: shell injection
 ```
 
 **Validator Output:**
 ```
-❌ FAILED: Dangerous command execution detected
-   Issues:
-   - os.system: Arbitrary shell command
-   - shell injection vulnerability
-   Fix applied: shell=True is rewritten conservatively when possible
+FAILED: Dangerous command execution detected
+Issues:
+- os.system: Arbitrary shell command
+- shell injection vulnerability
+Note: shell=True is rewritten conservatively when possible, but os.system stays a hard failure.
 ```
 
 ### Example 3b: Safe Process Execution
 ```python
 # Code that PASSES validation:
 import subprocess
-result = subprocess.run(['ls', '-la'], shell=False, check=True)
+result = subprocess.run(["ls", "-la"], shell=False, check=True)
 ```
 
 **Validator Output:**
 ```
-✅ PASSED: Command execution detector
-   No dangerous patterns detected
+PASSED: Command execution detector
+No dangerous patterns detected
 ```
 
 ---
@@ -138,11 +138,11 @@ AWS_SECRET = "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
 
 **Validator Output:**
 ```
-❌ FAILED: Secrets detected
-   Issues:
-   - AWS Access Key detected
-   - AWS Secret Key pattern detected
-   
+FAILED: Secrets detected
+Issues:
+- AWS Access Key detected
+- AWS Secret Key pattern detected
+
 Auto-Fixed Code:
 AWS_ACCESS_KEY = "AKIA****"
 AWS_SECRET = "wJal****"
@@ -160,9 +160,9 @@ aws_key = os.environ.get("AWS_ACCESS_KEY")
 
 **Validator Output:**
 ```
-✅ PASSED: Secrets scanner
-   No hardcoded credentials found
-   Correctly using environment variables
+PASSED: Secrets scanner
+No hardcoded credentials found
+Correctly using environment variables
 ```
 
 ---
@@ -174,30 +174,30 @@ aws_key = os.environ.get("AWS_ACCESS_KEY")
 # Code that WOULD fail validation:
 import pickle
 user_data = input()
-obj = pickle.loads(user_data)  # DANGEROUS - arbitrary code execution
+obj = pickle.loads(user_data)  # Dangerous: arbitrary code execution
 ```
 
 **Validator Output:**
 ```
-❌ FAILED: Malicious imports detected
-   Issues:
-   - Blocked: pickle (Arbitrary code execution via deserialization)
-   Recommendation: Use json.loads() instead for untrusted data
+FAILED: Malicious imports detected
+Issues:
+- Blocked: pickle (arbitrary code execution via deserialization)
+Recommendation: Use json.loads() instead for untrusted data
 ```
 
 ### Example 5b: Dynamic Import Detection
 ```python
 # Code that WOULD fail validation:
 module_name = input()
-mod = __import__(module_name)  # DANGEROUS - dynamic module loading
+mod = __import__(module_name)  # Dangerous: dynamic module loading
 ```
 
 **Validator Output:**
 ```
-❌ FAILED: Malicious imports detected
-   Issues:
-   - Dynamic __import__() call detected
-   Recommendation: Use importlib with validation
+FAILED: Malicious imports detected
+Issues:
+- Dynamic __import__() call detected
+Recommendation: Use importlib with validation
 ```
 
 ### Example 5c: Safe Imports
@@ -207,13 +207,13 @@ import json
 import typing
 from pathlib import Path
 
-data = json.loads(user_input)  # Safe - JSON only
+data = json.loads(user_input)
 ```
 
 **Validator Output:**
 ```
-✅ PASSED: Malicious imports detector
-   All imports are safe
+PASSED: Malicious imports detector
+All imports are safe
 ```
 
 ---
@@ -233,27 +233,26 @@ import json
 from typing import Dict, Any
 
 def get_user(user_id: int) -> Dict[str, Any]:
-    # Parameterized query - safe
-    cursor.execute("SELECT * FROM users WHERE id = ?", (user_id,))
+    cursor.execute("SELECT * FROM users WHERE id = %s", (user_id,))
     user = cursor.fetchone()
     return json.dumps(user) if user else "{}"
 ```
 
 **Validation Report:**
 ```
-✅ SQL Injection: PASSED
-   - Uses parameterized queries
-   
-✅ Command Execution: PASSED
-   - No system calls
-   
-✅ Secrets: PASSED
-   - No hardcoded credentials (credentials loaded from env)
-   
-✅ Malicious Imports: PASSED
-   - Only uses json (safe) and typing (metadata)
+SQL Injection: PASSED
+- Uses parameterized queries
 
-✅✅✅ OVERALL: PASSED - Code ready for production
+Command Execution: PASSED
+- No system calls
+
+Secrets: PASSED
+- No hardcoded credentials
+
+Malicious Imports: PASSED
+- Only uses safe standard-library imports
+
+OVERALL: PASSED
 ```
 
 ---
@@ -274,19 +273,18 @@ def process_csv(filepath: str) -> list:
     path = Path(filepath)
     if not path.exists():
         raise FileNotFoundError(f"File not found: {filepath}")
-    
-    with open(path, 'r') as f:
+
+    with open(path, "r") as f:
         reader = csv.DictReader(f)
         return [row for row in reader]
 ```
 
 **Validation Report:**
 ```
-✅ All Validators: PASSED
-   - Safe file I/O with pathlib
-   - Uses csv module (safe)
-   - No string concatenation
-   - No subprocess calls
+All Validators: PASSED
+- Safe file I/O with pathlib
+- Uses csv module
+- No subprocess calls
 ```
 
 ---
@@ -317,11 +315,11 @@ def validate_password(pwd: str) -> dict:
 
 **Validation Report:**
 ```
-✅ All Validators: PASSED
-   - No SQL injection (no database)
-   - No command execution (pure functions)
-   - No secrets (credentials not in code)
-   - No malicious imports (re module is safe)
+All Validators: PASSED
+- No SQL usage
+- No command execution
+- No hardcoded secrets
+- No malicious imports
 ```
 
 ---
@@ -332,16 +330,10 @@ def validate_password(pwd: str) -> dict:
 
 ```bash
 # Run all tests
-pytest tests/test_validators.py -v
+pytest tests -v
 
-# Output:
-# tests/test_validators.py::TestSQLInjectionValidator::test_safe_parameterized PASSED
-# tests/test_validators.py::TestSQLInjectionValidator::test_detects_fstring_sql PASSED
-# tests/test_validators.py::TestCommandExecutionValidator::test_detects_os_system PASSED
-# tests/test_validators.py::TestSecretsValidator::test_detects_aws_key PASSED
-# tests/test_validators.py::TestSecretsValidator::test_redacts_aws_key PASSED
-# ...
-# 23 passed in 2.27s ✅
+# Current result:
+# 36 passed in ~5s
 ```
 
 ### Interactive Testing with Web UI
@@ -355,16 +347,17 @@ uvicorn src.main:app --reload
 
 3. Try these prompts:
 
-**✅ Safe Prompts (Will Pass)**
+**Safe Prompts (Will Pass)**
 - "Write a Python function to check if a number is prime"
-- "Create a JavaScript function to capitalize a string"
 - "Write a Python function to merge two sorted lists"
 - "Create a function to calculate factorial recursively"
 
-**⚠️ Prompts that Test Validators**
+**Prompts that Exercise Validators**
 - "Write Python code to list directory contents" (might trigger imports check)
 - "Create a function to execute a shell command safely" (tests subprocess handling)
 - "Write code to query a database" (tests SQL patterns)
+
+If your deployment is secured, fill in the optional API key field before clicking **Generate Code**.
 
 ---
 
@@ -397,6 +390,7 @@ import requests
 
 response = requests.post(
     "http://localhost:8000/generate",
+    headers={"X-API-Key": "change-me-for-shared-access"},  # Optional in local dev
     json={
         "prompt": "Write a function to calculate average",
         "language": "python",
@@ -426,7 +420,7 @@ curl -X POST http://localhost:8000/generate \
   }'
 ```
 
-With `strict: true`, the validator will **reject** imports like:
+With `strict: true`, the validator will reject imports like:
 - `import requests`
 - `import socket`
 - `import urllib`
@@ -437,10 +431,7 @@ With `strict: true`, the validator will **reject** imports like:
 
 ### Q: Will the validator reject my safe code?
 
-**A:** No. Validators only flag actual security anti-patterns. False positives are minimized through:
-- Proper regex patterns that avoid arithmetic ops in SQL
-- AST analysis for precise function detection
-- Context-aware checking for subprocess calls
+**A:** The validators are conservative, but not perfect. The current tests cover safe parameterized SQL, dangerous command execution, secrets redaction, and strict import blocking. Treat the output as a guardrail, not a proof of production safety.
 
 ### Q: Can I disable validators?
 
@@ -452,15 +443,15 @@ With `strict: true`, the validator will **reject** imports like:
 
 ### Q: How are secrets redacted?
 
-**A:** Regex patterns match known formats (AWS key format, GitHub token pattern, etc.) and replace them with placeholders. The original prompt is never shown to end users.
+**A:** Regex patterns match known formats (AWS key format, GitHub token pattern, etc.) and replace them with placeholders in the validated output.
 
 ---
 
 ## 11. Performance Notes
 
-- Average validation time: **< 10ms per validator**
-- All validators run in parallel (via Guard composition)
-- No external API calls for validation (local processing)
+- Average validation time: lightweight enough for interactive demo usage
+- Validators run locally as part of the Guard validation pipeline
+- No external API calls for validation
 - Suitable for real-time feedback in development tools
 
 ---
@@ -470,10 +461,10 @@ With `strict: true`, the validator will **reject** imports like:
 | Validator | Blocks | Allows | Auto-Fix |
 |-----------|--------|--------|----------|
 | **SQL** | f-strings, concat in SQL | parameterized queries | Suggests safe patterns |
-| **Command** | os.system, eval, subprocess with shell=True | subprocess.run(..., shell=False) | Converts to safe version |
+| **Command** | os.system, eval, subprocess with shell=True | subprocess.run(..., shell=False) | Converts `shell=True` to `shell=False` when safe |
 | **Secrets** | Hardcoded AWS keys, tokens, passwords | os.environ, .env files | Auto-redacts |
 | **Imports** | pickle, ctypes, socket, __import__ | json, typing, pathlib | Suggests safe alternatives |
 
 ---
 
-**Last Updated:** December 3, 2025
+**Last Updated:** March 29, 2026

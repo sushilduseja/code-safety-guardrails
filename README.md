@@ -65,12 +65,15 @@ Response:
 }
 ```
 
-### `GET /health` - Health check
+### `GET /health` - Configuration health snapshot
 ```bash
 curl http://localhost:8000/health
 ```
 
+This endpoint reports local configuration state. It does not verify Gemini reachability or end-to-end request readiness.
+
 Health responses include:
+- `status`
 - `api_key_configured`
 - `auth_required`
 - `rate_limit_per_minute`
@@ -92,6 +95,9 @@ pytest tests -v
 
 ## Project Structure
 ```
+.impeccable.md
+EXAMPLES.md
+README.md
 src/
 |-- main.py
 |-- gemini_client.py
@@ -103,6 +109,7 @@ src/
     `-- factory.py
 tests/
 |-- test_api.py
+|-- test_demo_ui.py
 `-- test_validators.py
 static/
 `-- demo_ui.html
@@ -111,6 +118,7 @@ static/
 ## Real-World Examples
 
 See [EXAMPLES.md](./EXAMPLES.md) for practical validator examples. Some examples are illustrative and should not be treated as production guarantees.
+See [.impeccable.md](./.impeccable.md) for the saved demo design context used to keep the portfolio UI consistent.
 
 ## Dependencies
 
