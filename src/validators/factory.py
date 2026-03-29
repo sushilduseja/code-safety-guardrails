@@ -21,7 +21,7 @@ def create_code_guard(strict: bool = False) -> Guard:
     guard = Guard(name="code_security")
 
     guard.use(SQLInjectionValidator(on_fail=OnFailAction.FIX))
-    guard.use(CommandExecutionValidator(on_fail=OnFailAction.FIX))
+    guard.use(CommandExecutionValidator(on_fail=OnFailAction.EXCEPTION))
     guard.use(SecretsValidator(on_fail=OnFailAction.FIX))
     guard.use(
         MaliciousImportsValidator(

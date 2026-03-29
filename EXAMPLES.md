@@ -2,6 +2,8 @@
 
 This guide shows practical usage patterns and demonstrates how each validator works.
 
+Note: the API currently accepts Python requests only. Examples for other languages are illustrative, not part of the supported API contract.
+
 ## 1. Safe Code Generation
 
 ### Example 1a: Python Function (Basic)
@@ -31,7 +33,7 @@ curl -X POST http://localhost:8000/generate \
 
 ---
 
-### Example 1b: JavaScript Array Processing
+### Example 1b: API Contract Guard
 ```bash
 curl -X POST http://localhost:8000/generate \
   -H "Content-Type: application/json" \
@@ -44,13 +46,17 @@ curl -X POST http://localhost:8000/generate \
 **Expected Response:**
 ```json
 {
-  "code": "const filterEven = (arr) => arr.filter(n => n % 2 === 0);",
-  "passed": true,
-  "issues": []
+  "detail": [
+    {
+      "type": "literal_error",
+      "loc": ["body", "language"],
+      "msg": "Input should be 'python'"
+    }
+  ]
 }
 ```
 
-**Why it passes:** No dangerous patterns detected.
+**Why it fails:** the hardened API only accepts Python until non-Python validators are implemented.
 
 ---
 
@@ -103,7 +109,7 @@ os.system(f"echo {username}")  # DANGEROUS - shell injection
    Issues:
    - os.system: Arbitrary shell command
    - shell injection vulnerability
-   Fix applied: subprocess.run(['echo', username], shell=False, check=True)
+   Fix applied: shell=True is rewritten conservatively when possible
 ```
 
 ### Example 3b: Safe Process Execution

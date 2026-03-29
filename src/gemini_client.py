@@ -1,3 +1,4 @@
+import asyncio
 import os
 from typing import Literal
 
@@ -9,6 +10,7 @@ from config.prompts import SYSTEM_PROMPT
 load_dotenv()
 
 MODEL_NAME = os.getenv("GEMINI_MODEL", "gemini-2.5-flash")
+TIMEOUT_SECONDS = float(os.getenv("GEMINI_TIMEOUT_SECONDS", "30"))
 
 
 class GeminiClient:
@@ -26,23 +28,40 @@ class GeminiClient:
     async def generate_code(
         self,
         prompt: str,
-        language: Literal["python", "javascript", "sql", "java", "typescript"] = "python",
+        language: Literal["python"] = "python",
     ) -> str:
         """Generate code for the given prompt and language.
 
         The system prompt is injected to steer the model towards secure patterns.
         """
 
-        full_prompt = (
-            f"{SYSTEM_PROMPT}\n\n"
-            f"Language: {language}. "
-            f"Generate only the code, no prose, no explanation.\n\n"
-            f"Task: {prompt}"
-        )
+        full_prompt = self.build_prompt(prompt, language)
 
-        # google-generativeai's async support is limited; use run_in_executor pattern from FastAPI if needed.
-        response = await self._call_model(full_prompt)
+        # Bound upstream latency so one slow model call cannot hang the request.
+        response = await asyncio.wait_for(
+            self._call_model(full_prompt),
+            timeout=TIMEOUT_SECONDS,
+        )
+        if not response.strip():
+            raise RuntimeError("Gemini returned an empty response")
         return response.strip()
+
+    @staticmethod
+    def build_prompt(prompt: str, language: Literal["python"] = "python") -> str:
+        """Structure policy and task separately to reduce prompt override ambiguity."""
+        return (
+            "<SYSTEM_POLICY>\n"
+            f"{SYSTEM_PROMPT}\n"
+            "</SYSTEM_POLICY>\n\n"
+            "<GENERATION_RULES>\n"
+            f"Language: {language}\n"
+            "Return code only.\n"
+            "Do not include prose or markdown fences.\n"
+            "</GENERATION_RULES>\n\n"
+            "<UNTRUSTED_USER_TASK>\n"
+            f"{prompt}\n"
+            "</UNTRUSTED_USER_TASK>"
+        )
 
     async def _call_model(self, prompt: str) -> str:
         # Using the sync client but wrapping it as async via FastAPI's threadpool

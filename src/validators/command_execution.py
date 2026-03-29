@@ -58,10 +58,12 @@ class CommandExecutionValidator(Validator):
 
         if issues:
             fixed = self._sanitize(value)
-            return FailResult(
-                error_message=f"Dangerous execution: {'; '.join(issues)}",
-                fix_value=fixed
-            )
+            result_kwargs = {
+                "error_message": f"Dangerous execution: {'; '.join(issues)}",
+            }
+            if fixed is not None:
+                result_kwargs["fix_value"] = fixed
+            return FailResult(**result_kwargs)
 
         return PassResult()
 
@@ -74,12 +76,11 @@ class CommandExecutionValidator(Validator):
             return node.func.id
         return ""
 
-    def _sanitize(self, code: str) -> str:
-        """Apply security fixes."""
-        code = re.sub(r'shell\s*=\s*True', 'shell=False, check=True', code)
-        code = re.sub(
-            r'\bos\.system\s*\(([^)]+)\)',
-            r'subprocess.run([\1], shell=False, check=True)',
-            code
-        )
-        return code + "\n# SECURITY: Disabled shell and enabled check=True"
+    def _sanitize(self, code: str) -> Optional[str]:
+        """Apply only conservative fixes that preserve the original call shape."""
+        if "os.system" in code:
+            return None
+        if self.SHELL_TRUE_PATTERN.search(code):
+            code = re.sub(r'shell\s*=\s*True', 'shell=False, check=True', code)
+            return code + "\n# SECURITY: Disabled shell and enabled check=True"
+        return None

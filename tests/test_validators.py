@@ -160,10 +160,8 @@ class TestComposedGuard:
     def test_unsafe_code_fails(self):
         guard = create_code_guard()
         unsafe = "import os\nos.system('ls')"
-        result = guard.validate(unsafe)
-        # With OnFailAction.FIX, the code is fixed but validation_passed is False
-        # if any validator had to fix it
-        assert "subprocess.run" in result.validated_output or not result.validation_passed
+        with pytest.raises(Exception):
+            guard.validate(unsafe)
 
     def test_secrets_auto_fixed(self):
         guard = create_code_guard()
