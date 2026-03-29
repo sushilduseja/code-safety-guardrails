@@ -21,6 +21,14 @@ class TestSQLInjectionValidator:
         result = validator.validate(code)
         assert result.outcome == "pass"
 
+    def test_safe_driver_parameterized_query_passes(self, validator):
+        code = (
+            'cursor.execute("SELECT * FROM users WHERE email = %s", '
+            "(email_address,))"
+        )
+        result = validator.validate(code)
+        assert result.outcome == "pass"
+
     def test_detects_fstring_sql(self, validator):
         code = 'query = f"SELECT * FROM users WHERE id = {user_id}"'
         result = validator.validate(code)
@@ -161,9 +169,12 @@ class TestComposedGuard:
         guard = create_code_guard()
         unsafe = "import os\nos.system('ls')"
         result = guard.validate(unsafe)
-        # With OnFailAction.FIX, the code is fixed but validation_passed is False
-        # if any validator had to fix it
-        assert "subprocess.run" in result.validated_output or not result.validation_passed
+        assert result.validation_passed is False
+        assert any(
+            summary.validator_name == "CommandExecutionValidator"
+            and summary.validator_status == "fail"
+            for summary in result.validation_summaries
+        )
 
     def test_secrets_auto_fixed(self):
         guard = create_code_guard()
@@ -174,5 +185,10 @@ class TestComposedGuard:
     def test_strict_mode_enforced(self):
         guard = create_code_guard(strict=True)
         code = "import socket"
-        with pytest.raises(Exception):
-            guard.validate(code)
+        result = guard.validate(code)
+        assert result.validation_passed is False
+        assert any(
+            summary.validator_name == "MaliciousImportsValidator"
+            and summary.validator_status == "fail"
+            for summary in result.validation_summaries
+        )

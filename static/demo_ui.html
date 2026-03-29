@@ -5,245 +5,502 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Code Safety Guardrails Demo</title>
   <style>
+    :root {
+      --bg: #f3f6f8;
+      --surface: #ffffff;
+      --surface-muted: #f7fafb;
+      --surface-strong: #eaf0f3;
+      --border: #d7e1e7;
+      --border-strong: #b7c7d1;
+      --text: #162129;
+      --text-soft: #53636f;
+      --text-muted: #6f818d;
+      --accent: #0f766e;
+      --accent-strong: #115e59;
+      --accent-soft: #d8f0ec;
+      --danger: #b42318;
+      --danger-soft: #fde8e7;
+      --success: #146c43;
+      --success-soft: #e3f5ea;
+      --warning: #9a6700;
+      --warning-soft: #fff1cc;
+      --shadow-lg: 0 30px 60px rgba(18, 40, 52, 0.12);
+      --shadow-sm: 0 8px 20px rgba(18, 40, 52, 0.08);
+      --radius-xl: 24px;
+      --radius-lg: 16px;
+      --radius-md: 12px;
+      --radius-sm: 10px;
+    }
     * { margin: 0; padding: 0; box-sizing: border-box; }
     body {
-      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      font-family: "Segoe UI", "Helvetica Neue", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(15, 118, 110, 0.08), transparent 30%),
+        linear-gradient(180deg, #f8fbfc 0%, #eef3f6 100%);
       min-height: 100vh;
-      padding: 2rem;
+      padding: 32px;
+      color: var(--text);
+    }
+    .header {
+      background:
+        linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(15, 118, 110, 0.02)),
+        var(--surface);
+      color: var(--text);
+      padding: 32px 36px 28px;
+      border-bottom: 1px solid var(--border);
+    }
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 14px;
+      padding: 7px 12px;
+      border-radius: 999px;
+      background: var(--accent-soft);
+      color: var(--accent-strong);
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+    }
+    .header h1 {
+      font-size: clamp(2rem, 3.4vw, 3rem);
+      line-height: 1.04;
+      letter-spacing: -0.04em;
+      max-width: 12ch;
+      margin-bottom: 10px;
+    }
+    .header p {
+      max-width: 60ch;
+      color: var(--text-soft);
+      line-height: 1.6;
     }
     .container {
       max-width: 1400px;
       margin: 0 auto;
-      background: white;
-      border-radius: 12px;
-      box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+      background: var(--surface);
+      border-radius: var(--radius-xl);
+      box-shadow: var(--shadow-lg);
       overflow: hidden;
       display: flex;
-      height: 90vh;
+      flex-direction: column;
+      border: 1px solid rgba(183, 199, 209, 0.55);
     }
-    .header {
-      grid-column: 1 / -1;
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-      color: white;
-      padding: 2rem;
-      text-align: center;
+    .content {
+      display: flex;
+      min-height: 80vh;
     }
-    .header h1 { font-size: 2rem; margin-bottom: 0.5rem; }
-    .header p { opacity: 0.9; }
     .controls {
       flex: 0 0 350px;
-      padding: 2rem;
-      border-right: 1px solid #e5e7eb;
+      padding: 28px;
+      border-right: 1px solid var(--border);
       display: flex;
       flex-direction: column;
-      gap: 1.5rem;
+      gap: 20px;
       overflow-y: auto;
-      background: #f9fafb;
+      background: var(--surface-muted);
     }
     .form-group {
       display: flex;
       flex-direction: column;
-      gap: 0.5rem;
+      gap: 8px;
     }
     .form-group label {
       font-weight: 600;
-      color: #374151;
+      color: var(--text);
       font-size: 0.95rem;
     }
     .form-group textarea,
-    .form-group select {
-      padding: 0.75rem;
-      border: 2px solid #e5e7eb;
-      border-radius: 6px;
+    .form-group select,
+    .form-group input {
+      width: 100%;
+      min-height: 48px;
+      padding: 12px 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
       font-family: monospace;
       font-size: 0.9rem;
-      transition: border-color 0.2s;
+      color: var(--text);
+      background: var(--surface);
+      transition: border-color 0.2s ease, box-shadow 0.2s ease, background-color 0.2s ease;
     }
     .form-group textarea:focus,
-    .form-group select:focus {
+    .form-group select:focus,
+    .form-group input:focus {
       outline: none;
-      border-color: #667eea;
-      background: white;
+      border-color: var(--accent);
+      box-shadow: 0 0 0 4px rgba(15, 118, 110, 0.13);
+      background: var(--surface);
     }
-    .form-group textarea { min-height: 120px; resize: vertical; }
+    .form-group textarea {
+      min-height: 148px;
+      resize: vertical;
+      line-height: 1.55;
+    }
+    .helper {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.45;
+    }
+    .strict-toggle {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      background: var(--surface);
+    }
+    .strict-toggle input {
+      width: 18px;
+      min-height: 18px;
+      margin-top: 2px;
+      accent-color: var(--accent);
+    }
+    .strict-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .strict-copy strong {
+      color: var(--text);
+      font-size: 0.92rem;
+    }
+    .strict-copy span {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      line-height: 1.4;
+    }
     button {
-      background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+      background: linear-gradient(135deg, var(--accent) 0%, var(--accent-strong) 100%);
       color: white;
       border: none;
-      padding: 0.875rem 1.5rem;
-      border-radius: 6px;
+      min-height: 48px;
+      padding: 14px 18px;
+      border-radius: var(--radius-sm);
       font-weight: 600;
       cursor: pointer;
-      transition: transform 0.2s, box-shadow 0.2s;
+      transition: transform 0.2s ease, box-shadow 0.2s ease, opacity 0.2s ease;
       font-size: 1rem;
+      box-shadow: 0 12px 24px rgba(15, 118, 110, 0.18);
     }
-    button:hover { transform: translateY(-2px); box-shadow: 0 8px 16px rgba(102, 126, 234, 0.4); }
+    button:hover { transform: translateY(-1px); box-shadow: 0 16px 30px rgba(15, 118, 110, 0.24); }
     button:active { transform: translateY(0); }
+    button:focus-visible {
+      outline: none;
+      box-shadow:
+        0 0 0 4px rgba(15, 118, 110, 0.16),
+        0 16px 30px rgba(15, 118, 110, 0.24);
+    }
+    button:disabled {
+      opacity: 0.7;
+      cursor: progress;
+      transform: none;
+    }
+    .status {
+      padding: 12px 14px;
+      border-radius: var(--radius-sm);
+      font-weight: 600;
+      margin-top: 2px;
+      border: 1px solid transparent;
+      line-height: 1.4;
+    }
+    .status.loading {
+      background: var(--warning-soft);
+      color: var(--warning);
+      border-color: rgba(154, 103, 0, 0.15);
+    }
+    .status.pass {
+      background: var(--success-soft);
+      color: var(--success);
+      border-color: rgba(20, 108, 67, 0.14);
+    }
+    .status.fail {
+      background: var(--danger-soft);
+      color: var(--danger);
+      border-color: rgba(180, 35, 24, 0.14);
+    }
+    .status.hidden {
+      display: none;
+    }
+    .examples {
+      max-height: 240px;
+      overflow-y: auto;
+      background: var(--surface);
+      padding: 16px;
+      border-radius: var(--radius-md);
+      border: 1px solid var(--border);
+    }
+    .examples strong {
+      color: var(--text);
+      font-size: 0.9rem;
+    }
+    .example-item {
+      padding: 12px 14px;
+      margin: 8px 0 0;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      cursor: pointer;
+      border-radius: var(--radius-sm);
+      font-size: 0.85rem;
+      color: var(--text-soft);
+      transition: border-color 0.2s ease, background-color 0.2s ease, transform 0.2s ease;
+    }
+    .example-item:hover,
+    .example-item:focus-visible {
+      background: #f3f9f8;
+      border-color: var(--accent);
+      transform: translateX(3px);
+      outline: none;
+    }
     .output {
       flex: 1;
       display: flex;
-      flex-direction: column;
       overflow: hidden;
+      min-width: 0;
     }
     .output-section {
       flex: 1;
       display: flex;
       flex-direction: column;
-      padding: 2rem;
-      border-right: 1px solid #e5e7eb;
+      padding: 28px;
+      border-right: 1px solid var(--border);
       overflow: hidden;
+      min-width: 0;
     }
     .output-section:last-child { border-right: none; }
     .output-section h2 {
       font-size: 1.1rem;
-      color: #374151;
-      margin-bottom: 1rem;
+      color: var(--text);
+      margin-bottom: 12px;
       font-weight: 600;
     }
+    .section-kicker {
+      color: var(--text-muted);
+      font-size: 0.82rem;
+      margin-bottom: 14px;
+      line-height: 1.45;
+    }
     pre {
-      background: #1f2937;
-      color: #f3f4f6;
-      padding: 1.5rem;
-      border-radius: 6px;
+      background: #11202a;
+      color: #e9f0f3;
+      padding: 18px;
+      border-radius: var(--radius-md);
       overflow: auto;
       flex: 1;
       font-size: 0.85rem;
       line-height: 1.5;
+      white-space: pre-wrap;
+      word-break: break-word;
+      box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.04);
     }
-    .status {
-      padding: 0.75rem 1rem;
-      border-radius: 6px;
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 18px;
+    }
+    .meta-card {
+      padding: 14px;
+      border-radius: var(--radius-md);
+      background: var(--surface);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow-sm);
+    }
+    .meta-card strong {
+      display: block;
+      font-size: 0.76rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+    .meta-card span {
+      color: var(--text);
+      font-size: 0.98rem;
       font-weight: 600;
-      text-align: center;
-      margin-top: 1rem;
     }
-    .status.loading { background: #fef3c7; color: #92400e; }
-    .status.pass { background: #dcfce7; color: #166534; }
-    .status.fail { background: #fee2e2; color: #991b1b; }
-    .examples {
-      max-height: 200px;
-      overflow-y: auto;
-      background: #f0f4ff;
-      padding: 1rem;
-      border-radius: 6px;
-      margin-top: 1rem;
+    @media (prefers-reduced-motion: reduce) {
+      * {
+        scroll-behavior: auto;
+        transition: none !important;
+      }
     }
-    .example-item {
-      padding: 0.75rem;
-      margin: 0.5rem 0;
-      background: white;
-      border-left: 3px solid #667eea;
-      cursor: pointer;
-      border-radius: 3px;
-      font-size: 0.85rem;
-      transition: all 0.2s;
+    @media (max-width: 960px) {
+      body { padding: 16px; }
+      .content { flex-direction: column; }
+      .controls {
+        flex: none;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .output { flex-direction: column; }
+      .output-section {
+        min-height: 320px;
+        border-right: none;
+        border-bottom: 1px solid var(--border);
+      }
+      .output-section:last-child { border-bottom: none; }
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
     }
-    .example-item:hover { background: #fffbeb; transform: translateX(4px); }
   </style>
 </head>
 <body>
-  <div class="header">
-    <h1>🛡️ Code Safety Guardrails</h1>
-    <p>Generate secure code with integrated AI-powered validation</p>
-  </div>
-
   <div class="container">
-    <div class="controls">
-      <div class="form-group">
-        <label for="prompt">Prompt</label>
-        <textarea id="prompt" placeholder="Describe the code you want to generate..."></textarea>
-      </div>
-
-      <div class="form-group">
-        <label for="language">Language</label>
-        <select id="language">
-          <option value="python">Python</option>
-          <option value="javascript">JavaScript</option>
-          <option value="sql">SQL</option>
-          <option value="java">Java</option>
-          <option value="typescript">TypeScript</option>
-        </select>
-      </div>
-
-      <div class="form-group">
-        <label for="strict">
-          <input type="checkbox" id="strict">
-          Strict Mode (block network imports)
-        </label>
-      </div>
-
-      <button id="generate">Generate Code</button>
-      <div id="status" class="status" style="display:none;"></div>
-
-      <div class="examples">
-        <strong style="color:#374151; font-size:0.9rem;">Quick Examples:</strong>
-        <div class="example-item" onclick="setExample('Write a Python function to check if a number is prime')">Python: Prime checker</div>
-        <div class="example-item" onclick="setExample('Create a JavaScript function to capitalize a string')">JS: Capitalize string</div>
-        <div class="example-item" onclick="setExample('Write a Python function to merge two sorted lists')">Python: Merge lists</div>
-        <div class="example-item" onclick="setExample('Create a function to validate email addresses')">Validate email</div>
+    <div class="header">
+      <div class="eyebrow">Portfolio Prototype</div>
+      <h1>Code Safety Guardrails</h1>
+      <p>Generate Python code, run it through layered security checks, and inspect exactly what passed or failed. Built to show a practical AI safety boundary, not just a prompt box.</p>
+      <div class="meta-grid">
+        <div class="meta-card">
+          <strong>Language</strong>
+          <span>Python only</span>
+        </div>
+        <div class="meta-card">
+          <strong>Validation</strong>
+          <span>4 security guards</span>
+        </div>
+        <div class="meta-card">
+          <strong>Access</strong>
+          <span>API key ready</span>
+        </div>
       </div>
     </div>
 
-    <div class="output">
-      <div class="output-section">
-        <h2>Generated Code</h2>
-        <pre id="code">// Generated code will appear here...</pre>
+    <div class="content">
+      <div class="controls">
+        <div class="form-group">
+          <label for="prompt">Prompt</label>
+          <textarea id="prompt" placeholder="Describe the Python code you want to generate..."></textarea>
+          <div class="helper">Use a real request, like file parsing, data validation, or secure database access.</div>
+        </div>
+
+        <div class="form-group">
+          <label for="language">Language</label>
+          <select id="language">
+            <option value="python">Python</option>
+          </select>
+          <div class="helper">The API is intentionally narrowed to Python until language-specific validation exists.</div>
+        </div>
+
+        <div class="strict-toggle">
+          <input type="checkbox" id="strict">
+          <label for="strict" class="strict-copy">
+            <strong>Strict mode</strong>
+            <span>Escalates restricted imports like network access into hard validation failures.</span>
+          </label>
+        </div>
+
+        <div class="form-group">
+          <label for="api-key">API Key (optional)</label>
+          <input
+            id="api-key"
+            type="password"
+            placeholder="Required when CODE_SAFETY_API_KEY is configured"
+          >
+          <div class="helper">Leave blank for local development. Add the shared key when testing a secured deployment.</div>
+        </div>
+
+        <button id="generate">Generate Code</button>
+        <div id="status" class="status hidden"></div>
+
+        <div class="examples">
+          <strong>Quick Examples</strong>
+          <div class="example-item" onclick="setExample('Write a Python function to check if a number is prime')">Prime checker</div>
+          <div class="example-item" onclick="setExample('Write a Python function to merge two sorted lists')">Merge lists</div>
+          <div class="example-item" onclick="setExample('Write a Python function to validate email addresses')">Validate email</div>
+          <div class="example-item" onclick="setExample('Write a Python function to read a CSV file safely')">Read CSV safely</div>
+        </div>
       </div>
-      <div class="output-section">
-        <h2>Validation Report</h2>
-        <pre id="report">// Validation results...</pre>
+
+      <div class="output">
+        <div class="output-section">
+          <h2>Generated Code</h2>
+          <div class="section-kicker">Validated output is shown here. If validation fails, the returned code reflects the guarded response rather than the raw model output.</div>
+          <pre id="code">// Generated code will appear here...</pre>
+        </div>
+        <div class="output-section">
+          <h2>Validation Report</h2>
+          <div class="section-kicker">Use this panel to inspect pass or fail status, surfaced issues, and the exact response contract from the API.</div>
+          <pre id="report">// Validation results...</pre>
+        </div>
       </div>
     </div>
   </div>
 
   <script>
     function setExample(text) {
-      document.getElementById('prompt').value = text;
+      document.getElementById("prompt").value = text;
     }
 
     async function generate() {
-      const prompt = document.getElementById('prompt').value.trim();
+      const prompt = document.getElementById("prompt").value.trim();
       if (!prompt) {
-        alert('Please enter a prompt');
+        alert("Please enter a prompt");
         return;
       }
 
-      const language = document.getElementById('language').value;
-      const strict = document.getElementById('strict').checked;
-      const status = document.getElementById('status');
+      const language = document.getElementById("language").value;
+      const strict = document.getElementById("strict").checked;
+      const apiKey = document.getElementById("api-key").value.trim();
+      const status = document.getElementById("status");
+      const button = document.getElementById("generate");
 
-      status.textContent = 'Generating...';
-      status.className = 'status loading';
-      status.style.display = 'block';
+      status.textContent = "Generating...";
+      status.className = "status loading";
+      button.disabled = true;
+      button.textContent = "Generating...";
 
       try {
-        const response = await fetch('/generate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
+        const headers = { "Content-Type": "application/json" };
+        if (apiKey) {
+          headers["X-API-Key"] = apiKey;
+        }
+        const response = await fetch("/generate", {
+          method: "POST",
+          headers,
           body: JSON.stringify({ prompt, language, strict })
         });
 
         const data = await response.json();
+        if (!response.ok) {
+          const detail = data.detail || "Request failed";
+          const message = Array.isArray(detail)
+            ? detail.map((item) => item.msg || JSON.stringify(item)).join("; ")
+            : detail;
+          document.getElementById("code").textContent = "Error: " + message;
+          document.getElementById("report").textContent = JSON.stringify(data, null, 2);
+          status.textContent = `Request Failed (${response.status})`;
+          status.className = "status fail";
+          return;
+        }
 
-        document.getElementById('code').textContent = data.code || 'No code generated';
-        document.getElementById('report').textContent = JSON.stringify(
+        document.getElementById("code").textContent = data.code || "No code generated";
+        document.getElementById("report").textContent = JSON.stringify(
           { passed: data.passed, issues: data.issues, timestamp: new Date().toISOString() },
-          null, 2
+          null,
+          2
         );
 
-        status.textContent = data.passed ? '✅ Validation Passed' : '⚠️ Validation Failed';
-        status.className = `status ${data.passed ? 'pass' : 'fail'}`;
+        status.textContent = data.passed ? "Validation Passed" : "Validation Failed";
+        status.className = `status ${data.passed ? "pass" : "fail"}`;
       } catch (error) {
-        document.getElementById('code').textContent = 'Error: ' + error.message;
-        status.textContent = '❌ Error';
-        status.className = 'status fail';
+        document.getElementById("code").textContent = "Error: " + error.message;
+        status.textContent = "Error";
+        status.className = "status fail";
+      } finally {
+        button.disabled = false;
+        button.textContent = "Generate Code";
       }
     }
 
-    document.getElementById('generate').addEventListener('click', generate);
-    document.getElementById('prompt').addEventListener('keydown', (e) => {
-      if (e.ctrlKey && e.key === 'Enter') generate();
+    document.getElementById("generate").addEventListener("click", generate);
+    document.getElementById("prompt").addEventListener("keydown", (e) => {
+      if (e.ctrlKey && e.key === "Enter") {
+        generate();
+      }
     });
   </script>
 </body>
