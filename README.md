@@ -26,7 +26,7 @@ Optional:
 uvicorn src.main:app --reload
 ```
 
-Then visit **http://localhost:8000/static/demo_ui.html** for the demo or **http://localhost:8000/docs** for the API docs.
+Then visit **http://localhost:8000/static/demo_ui.html** for the demo or **http://localhost:8000/docs** for the API docs. The demo page includes an optional API key field for secured deployments.
 
 ## Features
 
@@ -79,7 +79,7 @@ Health responses include:
 
 | Validator | Detects | Auto-Fix |
 |-----------|---------|----------|
-| **SQL Injection** | f-strings, concatenation in SQL | Suggests parameterized queries |
+| **SQL Injection** | f-strings, concatenation in SQL | Suggests parameterized queries for supported patterns |
 | **Command Execution** | os.system(), eval(), subprocess with shell=True | Safely rewrites `shell=True` only |
 | **Secrets** | AWS keys, GitHub tokens, passwords, private keys | Auto-redacts |
 | **Malicious Imports** | pickle, ctypes, socket, __import__() | Blocks dangerous modules |
