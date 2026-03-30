@@ -7,7 +7,7 @@ DEMO_UI = Path("index.html").read_text(encoding="utf-8")
 
 
 def test_demo_ui_has_api_env_support():
-    assert "VITE_API_URL" in DEMO_UI or "import.meta.env" in DEMO_UI
+    assert "VITE_API_URL" in DEMO_UI or "window.ENV" in DEMO_UI
 
 
 def test_demo_ui_handles_errors():
