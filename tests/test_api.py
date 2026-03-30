@@ -96,13 +96,11 @@ def test_generate_returns_validator_specific_failures(monkeypatch):
     validation = SimpleNamespace(
         validated_output="import os\nos.system('ls')",
         validation_passed=False,
-        validation_logs=[
+        validation_summaries=[
             SimpleNamespace(
                 validator_name="CommandExecutionValidator",
-                validation_result=SimpleNamespace(
-                    outcome="fail",
-                    error_message="Dangerous execution: os.system: Arbitrary shell command",
-                ),
+                validator_status="fail",
+                failure_reason="Dangerous execution: os.system: Arbitrary shell command",
             )
         ],
     )

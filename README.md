@@ -26,7 +26,21 @@ Optional:
 uvicorn src.main:app --reload
 ```
 
-Then visit **http://localhost:8000/** for the demo or **http://localhost:8000/docs** for the API docs. The demo page includes optional API key and API base URL fields for local and GitHub Pages deployments.
+Then visit **http://localhost:8000/** for the demo.
+
+## Deployment (Render)
+
+Deploy as a **full-stack** app (not static):
+- Build command: `pip install -r requirements.txt`
+- Start command: `uvicorn src.main:app --host 0.0.0.0 --port $PORT`
+
+Set these **Render dashboard secrets**:
+- `GOOGLE_API_KEY` — Gemini API key (required)
+- `CODE_SAFETY_API_KEY` — optional shared key for `/generate` auth
+- `RATE_LIMIT_REQUESTS_PER_MINUTE` — optional rate limit
+- `ENVIRONMENT` — set to `production` to enforce API key auth
+
+The frontend reads API URL from `VITE_API_URL` environment variable (local dev defaults to `window.location.origin`).
 
 ## Features
 

@@ -69,13 +69,11 @@ class GeminiClient:
         from fastapi.concurrency import run_in_threadpool
 
         def _generate() -> str:
+            from google.generativeai import GenerationConfig
             completion = self.model.generate_content(
                 prompt,
-                generation_config={
-                    "temperature": self.temperature,
-                },
+                generation_config=GenerationConfig(temperature=self.temperature),
             )
-            # google-generativeai returns a response object with .text
             return getattr(completion, "text", "")
 
         return await run_in_threadpool(_generate)

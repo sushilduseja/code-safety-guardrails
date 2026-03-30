@@ -114,14 +114,13 @@ def enforce_rate_limit(request: Request) -> None:
 def extract_validation_issues(validation: Any) -> List[ValidationIssue]:
     """Convert Guardrails validator logs into stable API response issues."""
     issues: List[ValidationIssue] = []
-    for log in getattr(validation, "validation_logs", []):
-        result = getattr(log, "validation_result", None)
-        if getattr(result, "outcome", None) != "fail":
+    for summary in getattr(validation, "validation_summaries", []):
+        if getattr(summary, "validator_status", None) != "fail":
             continue
         issues.append(
             ValidationIssue(
-                validator=getattr(log, "validator_name", "unknown"),
-                message=getattr(result, "error_message", "Validation failed"),
+                validator=getattr(summary, "validator_name", "unknown"),
+                message=getattr(summary, "failure_reason", "Validation failed"),
                 severity="error",
             )
         )
