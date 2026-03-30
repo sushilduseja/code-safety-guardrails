@@ -324,7 +324,7 @@
 
   <script>
     // Browser-compatible env check - falls back to current origin
-    // To set custom API URL: <script>window.ENV = { VITE_API_URL: 'https://your-api.com' };</script>
+    // To set custom API URL: window.ENV = { VITE_API_URL: 'https://your-api.com' }
     const API_BASE = (window.ENV && window.ENV.VITE_API_URL) || window.location.origin;
 
     const state = {
