@@ -166,7 +166,9 @@ async def generate(
         guard = get_guard(strict=req.strict)
         validation = guard.validate(raw_code)
         validated_code = validation.validated_output or raw_code
-        passed = validation.validation_passed
+        # If validator detected issues (even if auto-fixed), mark as not passed
+        issues = extract_validation_issues(validation)
+        passed = validation.validation_passed and len(issues) == 0
     except Exception as e:
         # Fail closed so validator/runtime issues never leak raw generated code.
         return GenerateResponse(
@@ -181,8 +183,6 @@ async def generate(
             ],
             raw_code=None,
         )
-
-    issues = extract_validation_issues(validation)
 
     return GenerateResponse(
         code=validated_code,
