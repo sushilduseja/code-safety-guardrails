@@ -6,7 +6,7 @@
   <title>Code Safety Guardrails</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Instrument+Serif:ital@0;1&family=DM+Sans:wght@400;500;600&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
   <style>
     :root {
       --bg: #faf9f7;
@@ -23,11 +23,41 @@
       --danger-bg: #fef2f2;
       --success: #16a34a;
       --success-bg: #f0fdf4;
+      --warning: #f59e0b;
+      --output-bg: #1e1e1e;
+      --output-code: #e5e5e5;
+      --output-code-error: #fca5a5;
+      --output-code-success: #86efac;
+      --tooltip-bg: #1a1a1a;
       --radius: 8px;
       --radius-lg: 16px;
       --font-display: 'Instrument Serif', Georgia, serif;
       --font-body: 'DM Sans', system-ui, sans-serif;
       --font-mono: 'DM Mono', 'JetBrains Mono', monospace;
+      --z-tooltip: 10;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #1a1a1a;
+        --surface: #262626;
+        --surface-raised: #333333;
+        --text: #faf9f7;
+        --text-secondary: #a3a3a3;
+        --text-tertiary: #737373;
+        --border: #404040;
+        --output-bg: #0a0a0a;
+        --output-code: #d4d4d4;
+        --output-code-error: #fca5a5;
+        --output-code-success: #86efac;
+        --tooltip-bg: #404040;
+      }
+    }
+
+    @media (prefers-color-scheme: light) {
+      :root {
+        --tooltip-bg: #1a1a1a;
+      }
     }
 
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -88,11 +118,13 @@
       width: 8px;
       height: 8px;
       border-radius: 50%;
-      background: var(--success);
+      background: var(--text-tertiary);
       flex-shrink: 0;
     }
 
-    .status-dot.loading { background: #f59e0b; animation: pulse 1s infinite; }
+    .status-dot.ready { background: var(--success); }
+    .status-dot.loading { background: var(--warning); animation: pulse 1s infinite; }
+    .status-dot.error { background: var(--danger); }
 
     @keyframes pulse {
       0%, 100% { opacity: 1; }
@@ -107,6 +139,11 @@
 
     @media (max-width: 768px) {
       .workspace { grid-template-columns: 1fr; }
+      .workspace .panel.output-panel { order: -1; }
+      .shortcut-hint { display: none; }
+      .checkbox-group input { width: 44px; height: 44px; }
+      button { min-height: 44px; min-width: 44px; }
+      .example-btn { min-height: 44px; }
     }
 
     .panel {
@@ -156,7 +193,7 @@
     .output {
       min-height: 280px;
       padding: 16px;
-      background: #1e1e1e;
+      background: var(--output-bg);
       border-radius: var(--radius);
       overflow: auto;
       flex: 1;
@@ -166,13 +203,47 @@
       font-family: var(--font-mono);
       font-size: 0.8125rem;
       line-height: 1.6;
-      color: #e5e5e5;
+      color: var(--output-code);
       white-space: pre-wrap;
       word-break: break-all;
     }
 
-    .output.error code { color: #fca5a5; }
-    .output.success code { color: #86efac; }
+    .output code .cursor {
+      display: inline-block;
+      width: 2px;
+      height: 1.1em;
+      background: var(--output-code);
+      margin-left: 1px;
+      vertical-align: text-bottom;
+      animation: blink 1s step-end infinite;
+    }
+
+    .output code .cursor.typing {
+      animation: none;
+      background: var(--accent);
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+
+    .output.error code { color: var(--output-code-error); }
+    .output.success code { color: var(--output-code-success); }
+
+    @keyframes slideIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    @keyframes successPop {
+      0% { transform: scale(0.8); opacity: 0; }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); opacity: 1; }
+    }
+
+    .output.show { animation: slideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
+    .output.success.show { animation: slideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1), successPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     .controls {
       display: flex;
@@ -187,6 +258,7 @@
       gap: 8px;
       cursor: pointer;
       user-select: none;
+      position: relative;
     }
 
     .checkbox-group input {
@@ -201,6 +273,42 @@
       color: var(--text-secondary);
     }
 
+    .checkbox-group .tooltip-trigger {
+      cursor: help;
+    }
+
+    .checkbox-group .tooltip {
+      position: absolute;
+      bottom: calc(100% + 8px);
+      left: 0;
+      background: var(--tooltip-bg);
+      color: var(--bg);
+      padding: 8px 12px;
+      border-radius: var(--radius);
+      font-size: 0.75rem;
+      line-height: 1.4;
+      width: 220px;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.2s, visibility 0.2s;
+      z-index: var(--z-tooltip);
+    }
+
+    .checkbox-group .tooltip::after {
+      content: '';
+      position: absolute;
+      top: 100%;
+      left: 16px;
+      border: 6px solid transparent;
+      border-top-color: var(--tooltip-bg);
+    }
+
+    .checkbox-group:hover .tooltip,
+    .checkbox-group:focus-within .tooltip {
+      opacity: 1;
+      visibility: visible;
+    }
+
     button {
       padding: 12px 24px;
       background: var(--accent);
@@ -211,16 +319,41 @@
       font-size: 0.9rem;
       font-weight: 500;
       cursor: pointer;
-      transition: background 0.2s, transform 0.1s;
+      transition: background 0.2s, transform 0.15s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s;
+      box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     }
 
-    button:hover { background: var(--accent-dark); }
-    button:active { transform: scale(0.98); }
-    button:disabled { opacity: 0.6; cursor: not-allowed; }
+    button:hover { 
+      background: var(--accent-dark); 
+      transform: translateY(-1px);
+      box-shadow: 0 4px 12px rgba(13, 148, 136, 0.25);
+    }
+    button:active { 
+      transform: translateY(0) scale(0.98);
+      box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
+    }
+    button:disabled { opacity: 0.6; cursor: not-allowed; transform: none; box-shadow: none; }
 
     button:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
+    }
+
+    button#cancel {
+      background: var(--surface);
+      color: var(--text-secondary);
+      border: 1px solid var(--border);
+    }
+
+    button#cancel:hover {
+      background: var(--surface-raised);
+      color: var(--text);
+    }
+
+    .shortcut-hint {
+      font-size: 0.75rem;
+      color: var(--text-tertiary);
+      margin-left: auto;
     }
 
     .examples {
@@ -238,17 +371,41 @@
       font-size: 0.8125rem;
       color: var(--text-secondary);
       cursor: pointer;
-      transition: border-color 0.2s, color 0.2s;
+      transition: border-color 0.2s, color 0.2s, transform 0.15s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+
+    .example-btn::before {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: -100%;
+      width: 100%;
+      height: 100%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.1), transparent);
+      transition: left 0.5s;
     }
 
     .example-btn:hover {
       border-color: var(--accent);
       color: var(--accent);
+      transform: translateY(-2px);
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+    }
+
+    .example-btn:hover::before {
+      left: 100%;
     }
 
     .example-btn:focus-visible {
       outline: 2px solid var(--accent);
       outline-offset: 2px;
+    }
+
+    .example-btn:active {
+      transform: translateY(0);
+      box-shadow: none;
     }
 
     .result-meta {
@@ -264,6 +421,16 @@
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+      .output.show { animation: none; }
+      .output.success.show { animation: none; }
+      button { transition: none; }
+      button:hover { transform: none; box-shadow: none; }
+      button:active { transform: none; }
+      .example-btn { transition: none; }
+      .example-btn:hover { transform: none; box-shadow: none; }
+      .example-btn:active { transform: none; }
+      .example-btn::before { display: none; }
+      .output code .cursor { animation: none; background: transparent; width: 0; }
     }
   </style>
 </head>
@@ -292,11 +459,14 @@
         ></textarea>
         
         <div class="controls">
-          <label class="checkbox-group">
-            <input type="checkbox" id="strict">
-            <span>Strict mode</span>
+          <label class="checkbox-group" for="strict">
+            <input type="checkbox" id="strict" aria-describedby="strictTooltip">
+            <span class="tooltip-trigger" id="strictLabel">Strict mode</span>
+            <div class="tooltip" id="strictTooltip" role="tooltip" aria-labelledby="strictLabel">Rejects code with any security warnings. Recommended for production use.</div>
           </label>
           <button id="generate">Generate</button>
+          <button id="cancel" hidden>Cancel</button>
+          <span class="shortcut-hint" aria-label="Press Ctrl+Enter to generate">Ctrl+Enter</span>
         </div>
 
         <div class="examples" role="group" aria-label="Example prompts">
@@ -307,7 +477,7 @@
         </div>
       </div>
 
-      <div class="panel">
+      <div class="panel output-panel">
         <div class="panel-header">
           <h2>Generated Code</h2>
         </div>
@@ -331,6 +501,7 @@
       prompt: document.getElementById('prompt'),
       strict: document.getElementById('strict'),
       generate: document.getElementById('generate'),
+      cancel: document.getElementById('cancel'),
       output: document.getElementById('output'),
       codeOutput: document.getElementById('codeOutput'),
       statusDot: document.getElementById('statusDot'),
@@ -341,15 +512,75 @@
       examples: document.querySelectorAll('.example-btn')
     };
 
-    function setStatus(text, loading = false) {
+    let currentController = null;
+
+    function setStatus(text, loading = false, statusType = '') {
       state.statusText.textContent = text;
-      state.statusDot.classList.toggle('loading', loading);
+      state.statusDot.classList.remove('ready', 'loading', 'error');
+      if (statusType) {
+        state.statusDot.classList.add(statusType);
+      }
+    }
+
+    function setReady() {
+      setStatus('Ready — backend configured via environment variables', false, 'ready');
     }
 
     function showOutput(code, isError = false) {
-      state.codeOutput.textContent = code;
-      state.output.classList.toggle('error', isError);
-      state.output.classList.toggle('success', !isError && code.startsWith('def '));
+      state.codeOutput.innerHTML = '';
+      state.output.classList.remove('error', 'success', 'show');
+      void state.output.offsetWidth;
+      state.output.classList.add('show');
+      if (isError) {
+        state.output.classList.add('error');
+      } else if (code.startsWith('def ')) {
+        state.output.classList.add('success');
+      }
+    }
+
+    function typeOutput(code, isError = false) {
+      const displayCode = code + '<span class="cursor"></span>';
+      state.codeOutput.innerHTML = displayCode;
+    }
+
+    function finishTyping(code) {
+      const displayCode = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      state.codeOutput.innerHTML = displayCode;
+      const cursor = state.codeOutput.querySelector('.cursor');
+      if (cursor) cursor.remove();
+    }
+
+    async function streamCode(code, isError = false) {
+      const cleanCode = code
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;');
+      
+      state.codeOutput.innerHTML = '<span class="cursor typing"></span>';
+      
+      const chars = cleanCode.split('');
+      let result = '';
+      
+      for (let i = 0; i < chars.length; i++) {
+        result += chars[i];
+        state.codeOutput.innerHTML = result + '<span class="cursor typing"></span>';
+        await new Promise(r => setTimeout(r, 8 + Math.random() * 12));
+      }
+      
+      const cursor = state.codeOutput.querySelector('.cursor');
+      if (cursor) {
+        cursor.classList.remove('typing');
+        cursor.style.animation = 'blink 1s step-end infinite';
+      }
+      
+      if (isError) {
+        state.output.classList.add('error');
+      } else if (code.startsWith('def ')) {
+        state.output.classList.add('success');
+      }
     }
 
     function showResult(data) {
@@ -363,21 +594,26 @@
     async function generate() {
       const prompt = state.prompt.value.trim();
       if (!prompt) {
-        setStatus('Enter a prompt first');
+        setStatus('Enter a prompt first', false, 'error');
         return;
       }
 
       const strict = state.strict.checked;
       
       state.generate.disabled = true;
-      setStatus('Generating...', true);
-      showOutput('// Waiting for response...');
+      state.cancel.hidden = false;
+      setStatus('Generating...', true, 'loading');
+      showOutput('');
+      typeOutput('// Waiting for response...');
+
+      currentController = new AbortController();
 
       try {
         const res = await fetch(`${API_BASE}/generate`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ prompt, language: 'python', strict })
+          body: JSON.stringify({ prompt, language: 'python', strict }),
+          signal: currentController.signal
         });
 
         const data = await res.json();
@@ -385,25 +621,44 @@
         if (!res.ok) {
           const msg = data.detail || 'Request failed';
           showOutput(`Error: ${msg}`, true);
-          setStatus(`Error (${res.status})`);
+          streamCode(`Error: ${msg}`, true);
+          setStatus(`Error (${res.status})`, false, 'error');
           state.resultMeta.hidden = true;
           return;
         }
 
-        showOutput(data.code || '// No code generated');
+        const code = data.code || '// No code generated';
+        showOutput(code);
+        await streamCode(code);
         showResult(data);
-        setStatus(data.passed ? 'Validation passed' : 'Validation failed');
+        setStatus(data.passed ? 'Validation passed' : 'Validation failed', false, data.passed ? 'ready' : 'error');
 
       } catch (err) {
-        showOutput(`Error: ${err.message}`, true);
-        setStatus('Connection error');
-        state.resultMeta.hidden = true;
+        if (err.name === 'AbortError') {
+          showOutput('// Cancelled');
+          streamCode('// Cancelled');
+          setStatus('Cancelled', false, '');
+        } else {
+          showOutput(`Error: ${err.message}`, true);
+          streamCode(`Error: ${err.message}`, true);
+          setStatus('Connection error', false, 'error');
+          state.resultMeta.hidden = true;
+        }
       } finally {
         state.generate.disabled = false;
+        state.cancel.hidden = true;
+        currentController = null;
+      }
+    }
+
+    function cancelRequest() {
+      if (currentController) {
+        currentController.abort();
       }
     }
 
     state.generate.addEventListener('click', generate);
+    state.cancel.addEventListener('click', cancelRequest);
     
     state.prompt.addEventListener('keydown', (e) => {
       if (e.ctrlKey && e.key === 'Enter') generate();
@@ -415,6 +670,11 @@
         state.prompt.focus();
       });
     });
+
+    setReady();
+
+    console.log('%c⚡ Code Safety Guardrails', 'font-size: 16px; font-weight: bold; color: #0d9488;');
+    console.log('%cBuilt with Gemini + Guardrails AI', 'color: #5c5c5c;');
   </script>
 </body>
 </html>
