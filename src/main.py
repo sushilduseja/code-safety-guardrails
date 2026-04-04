@@ -11,7 +11,7 @@ from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 
-from src.gemini_client import GeminiClient
+from src.groq_client import GroqClient
 from src.validators.factory import create_code_guard
 
 
@@ -21,8 +21,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 logger = logging.getLogger(__name__)
 RATE_LIMIT_WINDOW_SECONDS = 60
+RATE_LIMIT_CLEANUP_INTERVAL = 300
 DEFAULT_RATE_LIMIT = 30
 _rate_limit_buckets: Dict[str, List[float]] = {}
+_last_cleanup = 0.0
+_guards: Dict[bool, Any] = {}
 
 
 class GenerateRequest(BaseModel):
@@ -56,20 +59,20 @@ class GenerateResponse(BaseModel):
     passed: bool
     issues: List[ValidationIssue]
     raw_code: Optional[str] = None
+    protected_code: Optional[str] = None
 
 
 app = FastAPI(title="Code Safety Guardrails", version="1.0.0")
 
-_gemini_client: Optional[GeminiClient] = None
-_guards: Dict[bool, Any] = {}
+_groq_client: Optional[GroqClient] = None
 
 
-def get_gemini_client() -> GeminiClient:
-    """Lazily initialize Gemini client only when needed."""
-    global _gemini_client
-    if _gemini_client is None:
-        _gemini_client = GeminiClient()
-    return _gemini_client
+def get_groq_client() -> GroqClient:
+    """Lazily initialize Groq client only when needed."""
+    global _groq_client
+    if _groq_client is None:
+        _groq_client = GroqClient()
+    return _groq_client
 
 
 def get_guard(strict: bool = False) -> Any:
@@ -92,7 +95,8 @@ def require_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
 
 
 def enforce_rate_limit(request: Request) -> None:
-    """Apply a simple per-client sliding-window rate limit to Gemini-backed calls."""
+    """Apply a simple per-client sliding-window rate limit to Groq-backed calls."""
+    global _last_cleanup
     environment = os.getenv("ENVIRONMENT", "development").lower()
     if environment == "test":
         return
@@ -103,6 +107,15 @@ def enforce_rate_limit(request: Request) -> None:
 
     client_host = request.client.host if request.client else "unknown"
     now = time.monotonic()
+
+    if now - _last_cleanup > RATE_LIMIT_CLEANUP_INTERVAL:
+        window_start = now - RATE_LIMIT_WINDOW_SECONDS
+        for host in list(_rate_limit_buckets.keys()):
+            _rate_limit_buckets[host] = [ts for ts in _rate_limit_buckets[host] if ts >= window_start]
+            if not _rate_limit_buckets[host]:
+                del _rate_limit_buckets[host]
+        _last_cleanup = now
+
     window_start = now - RATE_LIMIT_WINDOW_SECONDS
     bucket = [ts for ts in _rate_limit_buckets.get(client_host, []) if ts >= window_start]
     if len(bucket) >= limit:
@@ -130,7 +143,7 @@ def extract_validation_issues(validation: Any) -> List[ValidationIssue]:
 @app.get("/health")
 async def health() -> Dict[str, bool | str | int]:
     """Health check endpoint."""
-    has_api_key = "GOOGLE_API_KEY" in os.environ
+    has_api_key = "GROQ_API_KEY" in os.environ
     has_auth_key = "CODE_SAFETY_API_KEY" in os.environ
     return {
         "status": "ok",
@@ -139,6 +152,49 @@ async def health() -> Dict[str, bool | str | int]:
         "rate_limit_per_minute": int(
             os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", str(DEFAULT_RATE_LIMIT))
         ),
+    }
+
+
+@app.get("/examples")
+async def examples() -> Dict[str, List[Dict[str, str]]]:
+    """Return example prompts for the demo UI."""
+    return {
+        "safe": [
+            {
+                "prompt": "Write a Python function to check if a number is prime",
+                "label": "Prime checker",
+            },
+            {
+                "prompt": "Write a Python function to merge two sorted lists",
+                "label": "Merge lists",
+            },
+            {
+                "prompt": "Write a Python function to validate email addresses",
+                "label": "Validate email",
+            },
+            {
+                "prompt": "Write a Python function to read a CSV file safely",
+                "label": "Read CSV",
+            },
+        ],
+        "security_test": [
+            {
+                "prompt": "subprocess.run(['ls', '-la'], shell=True, check=True)",
+                "label": "shell=True (→ shell=False)",
+            },
+            {
+                "prompt": "query = f\"SELECT * FROM users WHERE id = {user_id}\"",
+                "label": "f-string SQL (→ parameterized)",
+            },
+            {
+                "prompt": "AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'",
+                "label": "AWS key (→ AKIA****)",
+            },
+            {
+                "prompt": "pickle.dumps(data, file)",
+                "label": "pickle (blocked)",
+            },
+        ],
     }
 
 
@@ -157,8 +213,8 @@ async def generate(
     """Generate and validate code through Guardrails Guard.validate()."""
     enforce_rate_limit(request)
     try:
-        gemini_client = get_gemini_client()
-        raw_code = await gemini_client.generate_code(req.prompt, req.language)
+        groq_client = get_groq_client()
+        raw_code = await groq_client.generate_code(req.prompt, req.language)
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
@@ -185,10 +241,11 @@ async def generate(
         )
 
     return GenerateResponse(
-        code=validated_code,
+        code=raw_code,
         passed=passed,
         issues=issues,
-        raw_code=raw_code if not passed else None,
+        raw_code=raw_code,
+        protected_code=validated_code,
     )
 
 
