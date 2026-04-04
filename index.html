@@ -132,14 +132,13 @@
     }
 
     .workspace {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      flex-direction: column;
       gap: 24px;
     }
 
     @media (max-width: 768px) {
-      .workspace { grid-template-columns: 1fr; }
-      .workspace .panel.output-panel { order: -1; }
+      .workspace { flex-direction: column; }
       .shortcut-hint { display: none; }
       .checkbox-group input { width: 44px; height: 44px; }
       button { min-height: 44px; min-width: 44px; }
@@ -156,6 +155,7 @@
       display: flex;
       justify-content: space-between;
       align-items: baseline;
+      gap: 12px;
     }
 
     .panel-header h2 {
@@ -165,6 +165,24 @@
       text-transform: uppercase;
       letter-spacing: 0.08em;
       color: var(--text-tertiary);
+    }
+
+    .panel-badge {
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: var(--radius);
+      background: var(--surface-raised);
+      color: var(--text-tertiary);
+    }
+
+    .output-panel.protected .panel-badge {
+      background: var(--accent-light);
+      color: var(--accent-dark);
+    }
+
+    .output-panel.protected {
+      border-color: var(--accent);
     }
 
     .panel-label {
@@ -230,6 +248,148 @@
 
     .output.error code { color: var(--output-code-error); }
     .output.success code { color: var(--output-code-success); }
+
+    .code-comparison {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .comparison-header {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .comparison-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-tertiary);
+    }
+
+    .comparison-divider {
+      flex: 1;
+      height: 1px;
+      background: var(--border);
+    }
+
+    .comparison-panes {
+      display: flex;
+      gap: 2px;
+      min-height: 320px;
+    }
+
+    .pane {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .pane-divider {
+      width: 2px;
+      background: var(--border);
+    }
+
+    .pane-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 10px 14px;
+      background: var(--surface-raised);
+      border-bottom: 1px solid var(--border);
+    }
+
+    .pane-title {
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: var(--text-secondary);
+    }
+
+    .pane-badge {
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 3px 8px;
+      border-radius: 4px;
+      background: var(--surface);
+      color: var(--text-tertiary);
+      border: 1px solid var(--border);
+    }
+
+    .pane-badge.protected {
+      background: var(--accent-light);
+      color: var(--accent-dark);
+      border-color: var(--accent);
+    }
+
+    .pane-content {
+      flex: 1;
+      padding: 14px;
+      background: var(--output-bg);
+      overflow: auto;
+    }
+
+    .pane-content pre {
+      margin: 0;
+      font-family: var(--font-mono);
+      font-size: 0.8125rem;
+      line-height: 1.6;
+      color: var(--output-code);
+      white-space: pre-wrap;
+      word-break: break-all;
+    }
+
+    .pane.protected-pane {
+      border-color: var(--accent);
+      box-shadow: 0 0 0 1px var(--accent-light);
+    }
+
+    .result-meta {
+      display: flex;
+      gap: 16px;
+      padding: 10px 14px;
+      background: var(--surface-raised);
+      border-top: 1px solid var(--border);
+      font-size: 0.8rem;
+    }
+
+    .meta-item {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .meta-label {
+      color: var(--text-tertiary);
+    }
+
+    .meta-value {
+      font-weight: 500;
+    }
+
+    .meta-value.pass {
+      color: var(--success);
+    }
+
+    .meta-value.fail {
+      color: var(--danger);
+    }
+
+    @media (max-width: 768px) {
+      .comparison-panes {
+        flex-direction: column;
+        min-height: auto;
+      }
+      .pane-divider {
+        width: 100%;
+        height: 2px;
+      }
+    }
 
     @keyframes slideIn {
       from { opacity: 0; transform: translateY(8px); }
@@ -362,6 +522,20 @@
       gap: 8px;
     }
 
+    .examples-section {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .examples-label {
+      font-size: 0.75rem;
+      font-weight: 600;
+      color: var(--text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
     .example-btn {
       padding: 8px 14px;
       background: var(--surface);
@@ -406,6 +580,17 @@
     .example-btn:active {
       transform: translateY(0);
       box-shadow: none;
+    }
+
+    .example-btn.negative {
+      border-color: var(--danger);
+      background: var(--danger-bg);
+    }
+
+    .example-btn.negative:hover {
+      border-color: var(--danger);
+      color: var(--danger);
+      background: var(--surface);
     }
 
     .result-meta {
@@ -460,7 +645,7 @@
         
         <div class="controls">
           <label class="checkbox-group" for="strict">
-            <input type="checkbox" id="strict" aria-describedby="strictTooltip">
+            <input type="checkbox" id="strict" checked aria-describedby="strictTooltip">
             <span class="tooltip-trigger" id="strictLabel">Strict mode</span>
             <div class="tooltip" id="strictTooltip" role="tooltip" aria-labelledby="strictLabel">Rejects code with any security warnings. Recommended for production use.</div>
           </label>
@@ -469,24 +654,52 @@
           <span class="shortcut-hint" aria-label="Press Ctrl+Enter to generate">Ctrl+Enter</span>
         </div>
 
-        <div class="examples" role="group" aria-label="Example prompts">
-          <button class="example-btn" data-prompt="Write a Python function to check if a number is prime">Prime checker</button>
-          <button class="example-btn" data-prompt="Write a Python function to merge two sorted lists">Merge lists</button>
-          <button class="example-btn" data-prompt="Write a Python function to validate email addresses">Validate email</button>
-          <button class="example-btn" data-prompt="Write a Python function to read a CSV file safely">Read CSV</button>
+        <div class="examples-section" id="examplesSection">
+          <div class="examples-label">Safe Examples</div>
+          <div class="examples" id="safeExamples" role="group" aria-label="Safe example prompts"></div>
+          <div class="examples-label">Security Tests (Negative)</div>
+          <div class="examples" id="securityExamples" role="group" aria-label="Security test prompts"></div>
         </div>
       </div>
 
-      <div class="panel output-panel">
-        <div class="panel-header">
-          <h2>Generated Code</h2>
+      <div class="code-comparison" id="codeComparison">
+        <div class="comparison-header">
+          <span class="comparison-label">Code Comparison</span>
+          <span class="comparison-divider"></span>
         </div>
-        <div class="output" id="output">
-          <code id="codeOutput">// Code will appear here...</code>
-        </div>
-        <div class="result-meta" id="resultMeta" hidden>
-          <span>Status: <span id="passStatus">—</span></span>
-          <span>Issues: <span id="issueCount">0</span></span>
+        
+        <div class="comparison-panes">
+          <div class="pane raw-pane">
+            <div class="pane-header">
+              <span class="pane-title">Raw Output</span>
+              <span class="pane-badge">Without Protection</span>
+            </div>
+            <div class="pane-content" id="rawPane">
+              <pre><code id="codeOutput">// Code will appear here...</code></pre>
+            </div>
+          </div>
+          
+          <div class="pane-divider"></div>
+          
+          <div class="pane protected-pane">
+            <div class="pane-header">
+              <span class="pane-title">Protected Output</span>
+              <span class="pane-badge protected">With Guardrails</span>
+            </div>
+            <div class="pane-content" id="protectedPane">
+              <pre><code id="protectedCodeOutput">// Protected code will appear here...</code></pre>
+            </div>
+            <div class="result-meta" id="resultMeta" hidden>
+              <span class="meta-item">
+                <span class="meta-label">Status:</span>
+                <span id="passStatus" class="meta-value">—</span>
+              </span>
+              <span class="meta-item">
+                <span class="meta-label">Issues:</span>
+                <span id="issueCount" class="meta-value">0</span>
+              </span>
+            </div>
+          </div>
         </div>
       </div>
     </section>
@@ -502,17 +715,48 @@
       strict: document.getElementById('strict'),
       generate: document.getElementById('generate'),
       cancel: document.getElementById('cancel'),
-      output: document.getElementById('output'),
+      rawPane: document.getElementById('rawPane'),
       codeOutput: document.getElementById('codeOutput'),
+      protectedPane: document.getElementById('protectedPane'),
+      protectedCodeOutput: document.getElementById('protectedCodeOutput'),
       statusDot: document.getElementById('statusDot'),
       statusText: document.getElementById('statusText'),
       resultMeta: document.getElementById('resultMeta'),
       passStatus: document.getElementById('passStatus'),
       issueCount: document.getElementById('issueCount'),
-      examples: document.querySelectorAll('.example-btn')
+      safeExamples: document.getElementById('safeExamples'),
+      securityExamples: document.getElementById('securityExamples'),
     };
 
     let currentController = null;
+
+    async function loadExamples() {
+      try {
+        const res = await fetch(`${API_BASE}/examples`);
+        const data = await res.json();
+        
+        state.safeExamples.innerHTML = data.safe.map(item => 
+          `<button class="example-btn" data-prompt="${item.prompt}">${item.label}</button>`
+        ).join('');
+        
+        state.securityExamples.innerHTML = data.security_test.map(item => 
+          `<button class="example-btn negative" data-prompt="${item.prompt}">${item.label}</button>`
+        ).join('');
+        
+        attachExampleListeners();
+      } catch (e) {
+        console.error('Failed to load examples:', e);
+      }
+    }
+
+    function attachExampleListeners() {
+      document.querySelectorAll('.example-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          state.prompt.value = btn.dataset.prompt;
+          state.prompt.focus();
+        });
+      });
+    }
 
     function setStatus(text, loading = false, statusType = '') {
       state.statusText.textContent = text;
@@ -528,29 +772,20 @@
 
     function showOutput(code, isError = false) {
       state.codeOutput.innerHTML = '';
-      state.output.classList.remove('error', 'success', 'show');
-      void state.output.offsetWidth;
-      state.output.classList.add('show');
+      state.rawPane.classList.remove('error', 'success');
       if (isError) {
-        state.output.classList.add('error');
+        state.rawPane.classList.add('error');
       } else if (code.startsWith('def ')) {
-        state.output.classList.add('success');
+        state.rawPane.classList.add('success');
       }
     }
 
     function typeOutput(code, isError = false) {
-      const displayCode = code + '<span class="cursor"></span>';
-      state.codeOutput.innerHTML = displayCode;
-    }
-
-    function finishTyping(code) {
       const displayCode = code
         .replace(/&/g, '&amp;')
         .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;');
+        .replace(/>/g, '&gt;') + '<span class="cursor"></span>';
       state.codeOutput.innerHTML = displayCode;
-      const cursor = state.codeOutput.querySelector('.cursor');
-      if (cursor) cursor.remove();
     }
 
     async function streamCode(code, isError = false) {
@@ -559,27 +794,27 @@
         .replace(/</g, '&lt;')
         .replace(/>/g, '&gt;');
       
-      state.codeOutput.innerHTML = '<span class="cursor typing"></span>';
+      state.protectedCodeOutput.innerHTML = '<span class="cursor typing"></span>';
       
       const chars = cleanCode.split('');
       let result = '';
       
       for (let i = 0; i < chars.length; i++) {
         result += chars[i];
-        state.codeOutput.innerHTML = result + '<span class="cursor typing"></span>';
+        state.protectedCodeOutput.innerHTML = result + '<span class="cursor typing"></span>';
         await new Promise(r => setTimeout(r, 8 + Math.random() * 12));
       }
       
-      const cursor = state.codeOutput.querySelector('.cursor');
+      const cursor = state.protectedCodeOutput.querySelector('.cursor');
       if (cursor) {
         cursor.classList.remove('typing');
         cursor.style.animation = 'blink 1s step-end infinite';
       }
       
       if (isError) {
-        state.output.classList.add('error');
+        state.protectedPane.classList.add('error');
       } else if (code.startsWith('def ')) {
-        state.output.classList.add('success');
+        state.protectedPane.classList.add('success');
       }
     }
 
@@ -604,7 +839,8 @@
       state.cancel.hidden = false;
       setStatus('Generating...', true, 'loading');
       showOutput('');
-      typeOutput('// Waiting for response...');
+      state.codeOutput.textContent = '// Waiting for response...';
+      state.protectedCodeOutput.textContent = '// Waiting for response...';
 
       currentController = new AbortController();
 
@@ -620,26 +856,26 @@
 
         if (!res.ok) {
           const msg = data.detail || 'Request failed';
-          showOutput(`Error: ${msg}`, true);
           streamCode(`Error: ${msg}`, true);
           setStatus(`Error (${res.status})`, false, 'error');
           state.resultMeta.hidden = true;
           return;
         }
 
-        const code = data.code || '// No code generated';
-        showOutput(code);
-        await streamCode(code);
+        const rawCode = data.raw_code || '// No code generated';
+        const protectedCode = data.protected_code || data.code || '// No code generated';
+        
+        state.codeOutput.textContent = rawCode;
+        await streamCode(protectedCode, data.issues && data.issues.length > 0);
+        
         showResult(data);
         setStatus(data.passed ? 'Validation passed' : 'Validation failed', false, data.passed ? 'ready' : 'error');
 
       } catch (err) {
         if (err.name === 'AbortError') {
-          showOutput('// Cancelled');
           streamCode('// Cancelled');
           setStatus('Cancelled', false, '');
         } else {
-          showOutput(`Error: ${err.message}`, true);
           streamCode(`Error: ${err.message}`, true);
           setStatus('Connection error', false, 'error');
           state.resultMeta.hidden = true;
@@ -664,17 +900,11 @@
       if (e.ctrlKey && e.key === 'Enter') generate();
     });
 
-    state.examples.forEach(btn => {
-      btn.addEventListener('click', () => {
-        state.prompt.value = btn.dataset.prompt;
-        state.prompt.focus();
-      });
-    });
-
+    loadExamples();
     setReady();
 
     console.log('%c⚡ Code Safety Guardrails', 'font-size: 16px; font-weight: bold; color: #0d9488;');
-    console.log('%cBuilt with Gemini + Guardrails AI', 'color: #5c5c5c;');
+    console.log('%cBuilt with Groq + Guardrails AI', 'color: #5c5c5c;');
   </script>
 </body>
 </html>

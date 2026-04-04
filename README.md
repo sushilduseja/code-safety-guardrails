@@ -1,6 +1,6 @@
 # Code Safety Guardrails
 
-AI-powered Python code generation with integrated security validation using Google Gemini and Guardrails AI.
+AI-powered Python code generation with integrated security validation using Groq and Guardrails AI.
 
 ## Quick Start
 
@@ -13,12 +13,12 @@ source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
 pip install -r requirements.txt
 pip install -r requirements.lock
 cp .env.example .env
-# Edit .env with your GOOGLE_API_KEY from https://ai.google.dev/
+# Edit .env with your GROQ_API_KEY from https://console.groq.com/
 ```
 
 Optional:
 - Set `CODE_SAFETY_API_KEY` to require the `X-API-Key` header on `POST /generate`
-- Set `GEMINI_TIMEOUT_SECONDS` to bound upstream model latency
+- Set `GROQ_TIMEOUT_SECONDS` to bound upstream model latency
 - Set `RATE_LIMIT_REQUESTS_PER_MINUTE` to cap caller traffic to `/generate`
 
 ### Run
@@ -35,7 +35,7 @@ Deploy as a **full-stack** app (not static):
 - Start command: `uvicorn src.main:app --host 0.0.0.0 --port $PORT`
 
 Set these **Render dashboard secrets**:
-- `GOOGLE_API_KEY` — Gemini API key (required)
+- `GROQ_API_KEY` — Groq API key (required)
 - `CODE_SAFETY_API_KEY` — optional shared key for `/generate` auth
 - `RATE_LIMIT_REQUESTS_PER_MINUTE` — optional rate limit
 - `ENVIRONMENT` — set to `production` to enforce API key auth
@@ -84,7 +84,7 @@ Response:
 curl http://localhost:8000/health
 ```
 
-This endpoint reports local configuration state. It does not verify Gemini reachability or end-to-end request readiness.
+This endpoint reports local configuration state. It does not verify Groq reachability or end-to-end request readiness.
 
 Health responses include:
 - `status`
@@ -115,7 +115,7 @@ index.html
 README.md
 src/
 |-- main.py
-|-- gemini_client.py
+|-- groq_client.py
 `-- validators/
     |-- sql_injection.py
     |-- command_execution.py
@@ -125,6 +125,7 @@ src/
 tests/
 |-- test_api.py
 |-- test_demo_ui.py
+|-- test_groq_client.py
 `-- test_validators.py
 ```
 
@@ -137,7 +138,7 @@ See [.impeccable.md](./.impeccable.md) for the saved demo design context used to
 
 - FastAPI, Uvicorn - Web framework
 - Guardrails AI - Validation framework
-- Google Generative AI - Gemini API
+- Groq - LLM API
 - Pydantic - Data validation
 - pytest - Testing
 

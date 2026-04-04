@@ -4,7 +4,7 @@ This guide shows practical usage patterns and demonstrates how each validator wo
 
 Note: the API currently accepts Python requests only. Examples for other languages are illustrative, not part of the supported API contract.
 
-## 1. Safe Code Generation
+## 1. Safe Code Generation (Positive Examples)
 
 ### Example 1a: Python Function (Basic)
 ```bash
@@ -31,9 +31,192 @@ curl -X POST http://localhost:8000/generate \
 - Secrets: PASS (no credentials)
 - Malicious Imports: PASS (uses only builtins)
 
+### Example 1b: Prime Number Checker
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a Python function to check if a number is prime",
+    "language": "python"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "def is_prime(n):\n    if n < 2:\n        return False\n    for i in range(2, int(n**0.5) + 1):\n        if n % i == 0:\n            return False\n    return True",
+  "passed": true,
+  "issues": []
+}
+```
+
+### Example 1c: CSV File Reading
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a Python function to read a CSV file safely",
+    "language": "python"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "import csv\nfrom pathlib import Path\n\ndef read_csv(filepath):\n    path = Path(filepath)\n    if not path.exists():\n        raise FileNotFoundError(f\"File not found: {filepath}\")\n    with open(path, 'r', newline='') as f:\n        return list(csv.DictReader(f))",
+  "passed": true,
+  "issues": []
+}
+```
+
 ---
 
-### Example 1b: API Contract Guard
+## 2. Negative Examples (Security Tests)
+
+### Example 2a: Shell Command Injection (Blocked)
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write Python code that executes a shell command from user input",
+    "language": "python"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "import subprocess\n\ndef run_command(user_input):\n    # Security: Using shell=False to prevent injection\n    result = subprocess.run([\"echo\", user_input], shell=False, capture_output=True, text=True)\n    return result.stdout",
+  "passed": true,
+  "issues": [
+    {
+      "validator": "CommandExecution",
+      "message": "Detected potential command execution pattern. Rewrote to use shell=False for safety.",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+**What happened:** The LLM tried to generate unsafe code, but the validator detected and auto-fixed the pattern.
+
+### Example 2b: SQL Injection (Blocked)
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write Python code that builds a SQL query from user input",
+    "language": "python"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "import sqlite3\n\ndef query_users(user_input):\n    conn = sqlite3.connect('database.db')\n    cursor = conn.cursor()\n    # Security: Using parameterized query to prevent SQL injection\n    cursor.execute(\"SELECT * FROM users WHERE name = ?\", (user_input,))\n    return cursor.fetchall()",
+  "passed": true,
+  "issues": [
+    {
+      "validator": "SQLInjection",
+      "message": "Detected SQL query building pattern. Auto-fixed to use parameterized queries.",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+### Example 2c: Environment Variable Access (Blocked)
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write Python code that reads environment variables",
+    "language": "python"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "import os\n\ndef get_env_var(key):\n    # Security: Using os.environ.get() for safe access\n    value = os.environ.get(key)\n    return value if value else None",
+  "passed": true,
+  "issues": []
+}
+```
+
+Note: Basic `os.environ` access is allowed; only hardcoded secrets are flagged.
+
+### Example 2d: Pickle Deserialization (Blocked)
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write Python code that loads data from pickle",
+    "language": "python"
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "import json\n\ndef load_data(user_input):\n    # Security: Using json instead of pickle to prevent arbitrary code execution\n    try:\n        return json.loads(user_input)\n    except json.JSONDecodeError:\n        return None",
+  "passed": true,
+  "issues": [
+    {
+      "validator": "MaliciousImports",
+      "message": "Pickle is blocked due to deserialization vulnerabilities. Suggest using json instead.",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+---
+
+## 3. Strict Mode Examples
+
+### Example 3a: Normal Mode (socket allowed)
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a function to make an HTTP request",
+    "language": "python",
+    "strict": false
+  }'
+```
+
+**Expected:** May pass with auto-fix
+
+### Example 3b: Strict Mode (socket blocked)
+```bash
+curl -X POST http://localhost:8000/generate \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "Write a function to make an HTTP request",
+    "language": "python",
+    "strict": true
+  }'
+```
+
+**Expected Response:**
+```json
+{
+  "code": "import json\n\ndef fetch_data():\n    # Strict mode: Network imports blocked\n    return {\"error\": \"Network access not allowed in strict mode\"}",
+  "passed": false,
+  "issues": [
+    {
+      "validator": "MaliciousImports",
+      "message": "Blocked import 'socket' in strict mode",
+      "severity": "error"
+    }
+  ]
+}
+```
+
+---
+
+## 4. API Contract Guard
 ```bash
 curl -X POST http://localhost:8000/generate \
   -H "Content-Type: application/json" \

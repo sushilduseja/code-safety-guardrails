@@ -21,5 +21,5 @@ def test_demo_ui_has_strict_mode():
 
 
 def test_demo_ui_has_examples():
-    assert "Prime checker" in DEMO_UI
-    assert "Merge lists" in DEMO_UI
+    assert "/examples" in DEMO_UI
+    assert "loadExamples" in DEMO_UI

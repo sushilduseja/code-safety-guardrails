@@ -8,7 +8,7 @@ import httpx
 import src.main as main_module
 
 
-class StubGeminiClient:
+class StubGroqClient:
     """Simple async stub for API tests."""
 
     def __init__(self, code: str) -> None:
@@ -67,8 +67,8 @@ def test_generate_requires_api_key_in_production(monkeypatch):
 def test_generate_fails_closed_when_validation_raises(monkeypatch):
     monkeypatch.setattr(
         main_module,
-        "get_gemini_client",
-        lambda: StubGeminiClient("import socket"),
+        "get_groq_client",
+        lambda: StubGroqClient("import socket"),
     )
     monkeypatch.setattr(
         main_module,
@@ -106,8 +106,8 @@ def test_generate_returns_validator_specific_failures(monkeypatch):
     )
     monkeypatch.setattr(
         main_module,
-        "get_gemini_client",
-        lambda: StubGeminiClient("import os\nos.system('ls')"),
+        "get_groq_client",
+        lambda: StubGroqClient("import os\nos.system('ls')"),
     )
     monkeypatch.setattr(
         main_module,
@@ -154,6 +154,19 @@ def test_health_reports_boolean_api_key_status():
     assert isinstance(body["rate_limit_per_minute"], int)
 
 
+def test_examples_endpoint_returns_safe_and_security_test_prompts():
+    response = request_json("GET", "/examples")
+
+    assert response.status_code == 200
+    body = response.json()
+    assert "safe" in body
+    assert "security_test" in body
+    assert len(body["safe"]) == 4
+    assert len(body["security_test"]) == 4
+    assert any("prime" in e["prompt"].lower() for e in body["safe"])
+    assert any("shell=True" in e["prompt"] or "pickle" in e["prompt"] for e in body["security_test"])
+
+
 def test_root_serves_demo_index():
     response = request_json("GET", "/")
 
@@ -177,8 +190,8 @@ def test_generate_accepts_valid_api_key(monkeypatch):
     monkeypatch.setenv("CODE_SAFETY_API_KEY", "secret")
     monkeypatch.setattr(
         main_module,
-        "get_gemini_client",
-        lambda: StubGeminiClient("def add(a, b):\n    return a + b"),
+        "get_groq_client",
+        lambda: StubGroqClient("def add(a, b):\n    return a + b"),
     )
     monkeypatch.setattr(
         main_module,
@@ -209,8 +222,8 @@ def test_generate_rate_limits_requests(monkeypatch):
     monkeypatch.setenv("CODE_SAFETY_API_KEY", "secret")
     monkeypatch.setattr(
         main_module,
-        "get_gemini_client",
-        lambda: StubGeminiClient("def add(a, b):\n    return a + b"),
+        "get_groq_client",
+        lambda: StubGroqClient("def add(a, b):\n    return a + b"),
     )
     monkeypatch.setattr(
         main_module,
