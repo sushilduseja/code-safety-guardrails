@@ -1,6 +1,6 @@
 # Code Safety Guardrails
 
-AI-powered Python code generation with integrated security validation using Groq and Guardrails AI.
+AI-powered Python code generation with integrated security validation using Groq.
 
 ## Quick Start
 
@@ -11,7 +11,6 @@ cd code-safety-guardrails
 python -m venv .venv
 source .venv/bin/activate  # or .venv\Scripts\Activate.ps1 on Windows
 pip install -r requirements.txt
-pip install -r requirements.lock
 cp .env.example .env
 # Edit .env with your GROQ_API_KEY from https://console.groq.com/
 ```
@@ -45,13 +44,16 @@ The frontend reads API URL from `VITE_API_URL` environment variable (local dev d
 ## Features
 
 - Python-focused validation for generated code
+- Internal, zero-dependency `ValidatorPipeline` (60 lines) replacing heavy guardrail libraries
 - 4 security validators: SQL injection, command execution, secrets detection, malicious imports
-- Conservative auto-fix behavior for selected patterns
-- Fail-closed validation responses when guard execution errors
-- Optional shared-key auth and per-client rate limiting on `/generate`
+- Safe code rewriting: AST-based SQL query rewriting, regex sanitization
+- Fully local and isolated execution pipeline (~30 MB install footprint)
+- Fails closed on parsing/AST errors and blocked patterns
+- Persistent rate limiting via Redis and `slowapi`
+- SQLite-backed API Key issuance per tenant
+- SQLite-backed request auditing and query logging
+- Endpoints for health checks (`/health`) and prometheus metrics (`/metrics`)
 - Interactive web demo for manual testing
-- Validator tests plus API-level regression coverage
-- Fully pinned dependency closure in `requirements.lock`
 
 ## API
 
@@ -137,10 +139,10 @@ See [.impeccable.md](./.impeccable.md) for the saved demo design context used to
 ## Dependencies
 
 - FastAPI, Uvicorn - Web framework
-- Guardrails AI - Validation framework
 - Groq - LLM API
 - Pydantic - Data validation
 - pytest - Testing
+- slowapi - Rate limiting
 
 ## License
 
