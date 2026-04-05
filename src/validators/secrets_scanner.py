@@ -1,20 +1,10 @@
-"""Secrets detection and redaction via Guardrails validator."""
+"""Secrets detection and redaction Validator."""
 
 import re
-from typing import Any, Dict, Optional
 
-from guardrails.validators import (
-    FailResult,
-    PassResult,
-    ValidationResult,
-    Validator,
-    register_validator,
-)
-
-
-@register_validator(name="code/secrets_exposure", data_type="string")
-class SecretsValidator(Validator):
+class SecretsValidator:
     """Detects and auto-redacts hardcoded secrets."""
+    name = "code/secrets_exposure"
 
     SECRET_PATTERNS = {
         r'AKIA[0-9A-Z]{16}': ("AWS Access Key", "AKIA****"),
@@ -26,25 +16,17 @@ class SecretsValidator(Validator):
         r'(?i)(?:api_key|apikey)\s*=\s*["\'][^"\']{8,}["\']': ("API Key", 'api_key="***"'),
     }
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def validate(
-        self, value: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> ValidationResult:
+    def validate(self, code: str) -> tuple[bool, str | None, str | None]:
         """Detect secrets and provide redacted version."""
         issues = []
-        redacted = value
+        redacted = code
 
         for pattern, (desc, replacement) in self.SECRET_PATTERNS.items():
-            if re.search(pattern, value):
+            if re.search(pattern, code):
                 issues.append(desc)
                 redacted = re.sub(pattern, replacement, redacted)
 
         if issues:
-            return FailResult(
-                error_message=f"Secrets detected: {', '.join(issues)}",
-                fix_value=redacted
-            )
+            return False, redacted, f"Secrets detected: {', '.join(issues)}"
 
-        return PassResult()
+        return True, None, None

@@ -1,159 +1,186 @@
-"""FastAPI application with Guardrails Guard.validate() integration."""
+"""FastAPI application with custom ValidatorPipeline integration."""
 
 import logging
 import os
 import sys
 import time
+import uuid
+import json
+import asyncio
+import hashlib
+import contextvars
 from pathlib import Path
 from typing import Any, Dict, List, Literal, Optional
+from datetime import datetime
 
-from fastapi import Depends, FastAPI, Header, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import Depends, FastAPI, Header, HTTPException, Request, Response
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from pydantic import BaseModel, Field
 
 from src.groq_client import GroqClient
-from src.validators.factory import create_code_guard
-
+from src.validators.factory import get_pipeline
+from src.db import init_db, resolve_key, connect
+from slowapi import Limiter
+from slowapi.util import get_remote_address
+from slowapi.middleware import SlowAPIMiddleware
 
 # Add project root to path for imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-
 logger = logging.getLogger(__name__)
-RATE_LIMIT_WINDOW_SECONDS = 60
-RATE_LIMIT_CLEANUP_INTERVAL = 300
-DEFAULT_RATE_LIMIT = 30
-_rate_limit_buckets: Dict[str, List[float]] = {}
-_last_cleanup = 0.0
-_guards: Dict[bool, Any] = {}
 
+# Initialize DB
+init_db()
+
+# Metrics counters
+_metrics = {
+    "requests_total": {},  # (tenant, passed) -> count
+    "validator_failures": {}, # validator -> count
+    "latency_ms": [], # list of recent latencies to approx p50 and p95
+}
+
+def record_metric(tenant: str, passed: bool, validators_failed: List[str], latency: int):
+    key = (tenant, passed)
+    _metrics["requests_total"][key] = _metrics["requests_total"].get(key, 0) + 1
+    for v in validators_failed:
+        _metrics["validator_failures"][v] = _metrics["validator_failures"].get(v, 0) + 1
+    _metrics["latency_ms"].append(latency)
+    if len(_metrics["latency_ms"]) > 1000:
+        _metrics["latency_ms"] = _metrics["latency_ms"][-1000:]
 
 class GenerateRequest(BaseModel):
     """Request model for code generation."""
-
-    prompt: str = Field(
-        ...,
-        min_length=1,
-        max_length=4000,
-        description="User prompt describing the desired code",
-    )
-    language: Literal["python"] = Field(
-        "python",
-        description="Target programming language",
-    )
+    prompt: str = Field(..., min_length=1, max_length=4000, description="User prompt describing the desired code")
+    language: Literal["python"] = Field("python", description="Target programming language")
     strict: bool = Field(False, description="Strict validation mode")
 
-
-class ValidationIssue(BaseModel):
+class ValidationIssueModel(BaseModel):
     """Single validation issue."""
-
     validator: str
     message: str
     severity: str
 
-
 class GenerateResponse(BaseModel):
     """Response model for code generation."""
-
     code: str
     passed: bool
-    issues: List[ValidationIssue]
+    issues: List[ValidationIssueModel]
     raw_code: Optional[str] = None
     protected_code: Optional[str] = None
 
-
 app = FastAPI(title="Code Safety Guardrails", version="1.0.0")
+
+request_ctx = contextvars.ContextVar("request")
+
+@app.middleware("http")
+async def add_request_context(request: Request, call_next):
+    token = request_ctx.set(request)
+    try:
+        response = await call_next(request)
+        return response
+    finally:
+        request_ctx.reset(token)
+
+def get_tenant_id(request: Request) -> str:
+    return getattr(request.state, "tenant_id", request.client.host if request.client else "unknown")
+
+limiter = Limiter(key_func=get_tenant_id, storage_uri=os.getenv("REDIS_URL", "memory://"))
+app.state.limiter = limiter
+
+app.add_middleware(SlowAPIMiddleware)
 
 _groq_client: Optional[GroqClient] = None
 
-
 def get_groq_client() -> GroqClient:
-    """Lazily initialize Groq client only when needed."""
     global _groq_client
     if _groq_client is None:
         _groq_client = GroqClient()
     return _groq_client
 
-
-def get_guard(strict: bool = False) -> Any:
-    """Lazily initialize Guard only when needed."""
-    guard = _guards.get(strict)
-    if guard is None:
-        guard = create_code_guard(strict=strict)
-        _guards[strict] = guard
-    return guard
-
-
-def require_api_key(x_api_key: Optional[str] = Header(default=None)) -> None:
-    """Optionally enforce a simple shared API key for external access."""
+def require_api_key(request: Request, x_api_key: Optional[str] = Header(default=None)) -> None:
     environment = os.getenv("ENVIRONMENT", "development").lower()
-    configured_api_key = os.getenv("CODE_SAFETY_API_KEY")
-    if environment not in {"development", "test"} and not configured_api_key:
-        raise HTTPException(status_code=503, detail="Service is missing CODE_SAFETY_API_KEY")
-    if configured_api_key and x_api_key != configured_api_key:
+    
+    if environment in {"development", "test"} and not x_api_key:
+        request.state.tenant_id = "dev"
+        request.state.rpm_limit = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", "60"))
+        return
+
+    if not x_api_key:
+        raise HTTPException(status_code=401, detail="Missing API key")
+
+    row = resolve_key(x_api_key)
+    if not row:
         raise HTTPException(status_code=401, detail="Invalid API key")
+    
+    request.state.tenant_id = row['tenant_id']
+    request.state.rpm_limit = row['rpm_limit']
 
-
-def enforce_rate_limit(request: Request) -> None:
-    """Apply a simple per-client sliding-window rate limit to Groq-backed calls."""
-    global _last_cleanup
-    environment = os.getenv("ENVIRONMENT", "development").lower()
-    if environment == "test":
-        return
-
-    limit = int(os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", str(DEFAULT_RATE_LIMIT)))
-    if limit <= 0:
-        return
-
-    client_host = request.client.host if request.client else "unknown"
-    now = time.monotonic()
-
-    if now - _last_cleanup > RATE_LIMIT_CLEANUP_INTERVAL:
-        window_start = now - RATE_LIMIT_WINDOW_SECONDS
-        for host in list(_rate_limit_buckets.keys()):
-            _rate_limit_buckets[host] = [ts for ts in _rate_limit_buckets[host] if ts >= window_start]
-            if not _rate_limit_buckets[host]:
-                del _rate_limit_buckets[host]
-        _last_cleanup = now
-
-    window_start = now - RATE_LIMIT_WINDOW_SECONDS
-    bucket = [ts for ts in _rate_limit_buckets.get(client_host, []) if ts >= window_start]
-    if len(bucket) >= limit:
-        raise HTTPException(status_code=429, detail="Rate limit exceeded")
-    bucket.append(now)
-    _rate_limit_buckets[client_host] = bucket
-
-
-def extract_validation_issues(validation: Any) -> List[ValidationIssue]:
-    """Convert Guardrails validator logs into stable API response issues."""
-    issues: List[ValidationIssue] = []
-    for summary in getattr(validation, "validation_summaries", []):
-        if getattr(summary, "validator_status", None) != "fail":
-            continue
-        issues.append(
-            ValidationIssue(
-                validator=getattr(summary, "validator_name", "unknown"),
-                message=getattr(summary, "failure_reason", "Validation failed"),
-                severity="error",
-            )
-        )
-    return issues
-
+def get_tenant_limit() -> str:
+    request = request_ctx.get()
+    limit = getattr(request.state, "rpm_limit", 60)
+    return f"{limit}/minute"
 
 @app.get("/health")
-async def health() -> Dict[str, bool | str | int]:
-    """Health check endpoint."""
-    has_api_key = "GROQ_API_KEY" in os.environ
-    has_auth_key = "CODE_SAFETY_API_KEY" in os.environ
-    return {
-        "status": "ok",
-        "api_key_configured": has_api_key,
-        "auth_required": has_auth_key,
-        "rate_limit_per_minute": int(
-            os.getenv("RATE_LIMIT_REQUESTS_PER_MINUTE", str(DEFAULT_RATE_LIMIT))
-        ),
-    }
+async def health():
+    groq_ok = False
+    try:
+        client = get_groq_client()
+        await asyncio.wait_for(client.client.models.list(), timeout=3.0)
+        groq_ok = True
+    except Exception:
+        pass
 
+    return JSONResponse(
+        status_code=200 if groq_ok else 503,
+        content={
+            "status": "ok" if groq_ok else "degraded",
+            "groq_reachable": groq_ok,
+            "validators_loaded": len(get_pipeline().validators),
+            "version": os.getenv("APP_VERSION", "dev"),
+        }
+    )
+
+@app.get("/metrics")
+async def metrics():
+    lines = []
+    for (tenant, passed), count in _metrics["requests_total"].items():
+        lines.append(f'guardrails_requests_total{{tenant="{tenant}",passed="{str(passed).lower()}"}} {count}')
+    
+    for v, count in _metrics["validator_failures"].items():
+        lines.append(f'guardrails_validator_failures_total{{validator="{v}"}} {count}')
+        
+    latencies = sorted(_metrics["latency_ms"])
+    if latencies:
+        p50 = latencies[int(len(latencies)*0.5)]
+        p95 = latencies[int(len(latencies)*0.95)]
+        lines.append(f'guardrails_latency_p50_ms {p50}')
+        lines.append(f'guardrails_latency_p95_ms {p95}')
+    else:
+        lines.append(f'guardrails_latency_p50_ms 0')
+        lines.append(f'guardrails_latency_p95_ms 0')
+        
+    return PlainTextResponse("\n".join(lines) + "\n")
+
+@app.get("/audit")
+async def audit(
+    tenant_id: str,
+    passed: Optional[bool] = None,
+    limit: int = 100,
+    offset: int = 0,
+    _auth: None = Depends(require_api_key)
+):
+    with connect() as conn:
+        query = "SELECT * FROM audit_log WHERE tenant_id=?"
+        params = [tenant_id]
+        if passed is not None:
+            query += " AND passed=?"
+            params.append(1 if passed else 0)
+        
+        query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        
+        rows = conn.execute(query, params).fetchall()
+        return [dict(row) for row in rows]
 
 @app.get("/examples")
 async def examples() -> Dict[str, List[Dict[str, str]]]:
@@ -197,49 +224,71 @@ async def examples() -> Dict[str, List[Dict[str, str]]]:
         ],
     }
 
-
 @app.get("/")
 async def index() -> FileResponse:
     """Serve the portfolio demo from the repository root."""
     return FileResponse(Path(__file__).parent.parent / "index.html")
 
-
 @app.post("/generate", response_model=GenerateResponse)
+@limiter.limit(get_tenant_limit)
 async def generate(
     request: Request,
     req: GenerateRequest,
-    _api_key: None = Depends(require_api_key),
+    _auth: None = Depends(require_api_key),
 ) -> GenerateResponse:
-    """Generate and validate code through Guardrails Guard.validate()."""
-    enforce_rate_limit(request)
+    start_time = time.monotonic()
+    request_id = str(uuid.uuid4())
+    tenant_id = getattr(request.state, "tenant_id", "unknown")
+    prompt_hash = hashlib.sha256(req.prompt.encode()).hexdigest()
+    
+    passed = False
+    raw_code = ""
+    validated_code = ""
+    issues = []
+    failed_validators = []
+    
     try:
         groq_client = get_groq_client()
         raw_code = await groq_client.generate_code(req.prompt, req.language)
+        
+        pipeline = get_pipeline(strict=req.strict)
+        result = pipeline.validate(raw_code)
+        
+        passed = result.passed and len(result.issues) == 0
+        validated_code = result.validated_output
+        issues = [ValidationIssueModel(validator=i.validator, message=i.message, severity=i.severity) for i in result.issues]
+        failed_validators = [i.validator for i in result.issues]
+        
     except Exception as exc:
-        raise HTTPException(status_code=500, detail=str(exc)) from exc
-
-    try:
-        guard = get_guard(strict=req.strict)
-        validation = guard.validate(raw_code)
-        validated_code = validation.validated_output or raw_code
-        # If validator detected issues (even if auto-fixed), mark as not passed
-        issues = extract_validation_issues(validation)
-        passed = validation.validation_passed and len(issues) == 0
-    except Exception as e:
-        # Fail closed so validator/runtime issues never leak raw generated code.
-        return GenerateResponse(
-            code="",
-            passed=False,
-            issues=[
-                ValidationIssue(
-                    validator="guard",
-                    message=f"Validation error: {str(e)}",
-                    severity="error",
+        issues.append(ValidationIssueModel(validator="pipeline", message=f"Validation error: {str(exc)}", severity="error"))
+        passed = False
+        validated_code = ""
+        failed_validators.append("pipeline")
+    finally:
+        latency_ms = int((time.monotonic() - start_time) * 1000)
+        
+        raw_code_hash = hashlib.sha256(raw_code.encode()).hexdigest() if raw_code else None
+        protected_code_hash = hashlib.sha256(validated_code.encode()).hexdigest() if validated_code else None
+        
+        try:
+            with connect() as conn:
+                conn.execute(
+                    """INSERT INTO audit_log (
+                        request_id, tenant_id, prompt_hash, language, strict,
+                        validators_run, issues_found, passed, raw_code_hash, protected_code_hash, latency_ms
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                    (
+                        request_id, tenant_id, prompt_hash, req.language, int(req.strict),
+                        json.dumps([v.name for v in get_pipeline(req.strict).validators]),
+                        json.dumps([i.model_dump() for i in issues]),
+                        int(passed), raw_code_hash, protected_code_hash, latency_ms
+                    )
                 )
-            ],
-            raw_code=None,
-        )
-
+        except Exception as e:
+            logger.error(f"Failed to write audit log: {e}")
+            
+        record_metric(tenant_id, passed, failed_validators, latency_ms)
+        
     return GenerateResponse(
         code=raw_code,
         passed=passed,
@@ -247,7 +296,6 @@ async def generate(
         raw_code=raw_code,
         protected_code=validated_code,
     )
-
 
 if __name__ == "__main__":
     import uvicorn

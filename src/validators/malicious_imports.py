@@ -1,20 +1,10 @@
-"""Malicious imports detection via Guardrails validator."""
+"""Malicious imports detection Validator."""
 
 import ast
-from typing import Any, Dict, List, Optional
 
-from guardrails.validators import (
-    FailResult,
-    PassResult,
-    ValidationResult,
-    Validator,
-    register_validator,
-)
-
-
-@register_validator(name="code/malicious_imports", data_type="string")
-class MaliciousImportsValidator(Validator):
+class MaliciousImportsValidator:
     """Detects dangerous imports via AST analysis."""
+    name = "code/malicious_imports"
 
     BLOCKED_MODULES = {
         "pickle": "Arbitrary code execution via deserialization",
@@ -31,18 +21,15 @@ class MaliciousImportsValidator(Validator):
         "smtplib": "Email capability",
     }
 
-    def __init__(self, strict: bool = False, **kwargs):
-        super().__init__(**kwargs)
+    def __init__(self, strict: bool = False):
         self.strict = strict
 
-    def validate(
-        self, value: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> ValidationResult:
+    def validate(self, code: str) -> tuple[bool, str | None, str | None]:
         """Detect blacklisted and network imports."""
         try:
-            tree = ast.parse(value)
-        except SyntaxError:
-            return PassResult()  # Non-Python passes
+            tree = ast.parse(code)
+        except SyntaxError as e:
+            return False, None, f"Code failed to parse: {e}"
 
         issues = []
         imports_found = []
@@ -71,8 +58,7 @@ class MaliciousImportsValidator(Validator):
                 issues.append(f"Restricted (strict): {mod}")
 
         if issues:
-            return FailResult(
-                error_message=f"Import security issues: {'; '.join(issues)}"
-            )
+            # no fix possible for imports unless we strip them
+            return False, None, f"Import security issues: {'; '.join(issues)}"
 
-        return PassResult()
+        return True, None, None

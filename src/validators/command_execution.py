@@ -1,21 +1,11 @@
-"""Command execution detection via Guardrails validator."""
+"""Command execution detection Validator."""
 
 import ast
 import re
-from typing import Any, Dict, Optional
 
-from guardrails.validators import (
-    FailResult,
-    PassResult,
-    ValidationResult,
-    Validator,
-    register_validator,
-)
-
-
-@register_validator(name="code/command_execution", data_type="string")
-class CommandExecutionValidator(Validator):
+class CommandExecutionValidator:
     """Detects dangerous command execution patterns."""
+    name = "code/command_execution"
 
     DANGEROUS_CALLS = {
         "os.system": "Arbitrary shell command",
@@ -29,18 +19,13 @@ class CommandExecutionValidator(Validator):
 
     SHELL_TRUE_PATTERN = re.compile(r'shell\s*=\s*True')
 
-    def __init__(self, **kwargs):
-        super().__init__(**kwargs)
-
-    def validate(
-        self, value: str, metadata: Optional[Dict[str, Any]] = None
-    ) -> ValidationResult:
+    def validate(self, code: str) -> tuple[bool, str | None, str | None]:
         """Check for dangerous execution patterns."""
         issues = []
 
         # AST-based detection
         try:
-            tree = ast.parse(value)
+            tree = ast.parse(code)
             for node in ast.walk(tree):
                 if isinstance(node, ast.Call):
                     call_name = self._get_call_name(node)
@@ -49,23 +34,18 @@ class CommandExecutionValidator(Validator):
         except SyntaxError:
             # Fallback to regex for non-Python code
             for func in self.DANGEROUS_CALLS:
-                if re.search(rf'\b{re.escape(func)}\s*\(', value):
+                if re.search(rf'\b{re.escape(func)}\s*\(', code):
                     issues.append(f"{func} detected")
 
         # Check for shell=True parameter
-        if self.SHELL_TRUE_PATTERN.search(value):
+        if self.SHELL_TRUE_PATTERN.search(code):
             issues.append("shell=True allows shell injection")
 
         if issues:
-            fixed = self._sanitize(value)
-            result_kwargs = {
-                "error_message": f"Dangerous execution: {'; '.join(issues)}",
-            }
-            if fixed is not None:
-                result_kwargs["fix_value"] = fixed
-            return FailResult(**result_kwargs)
+            fixed = self._sanitize(code)
+            return False, fixed, f"Dangerous execution: {'; '.join(issues)}"
 
-        return PassResult()
+        return True, None, None
 
     def _get_call_name(self, node: ast.Call) -> str:
         """Extract function name from AST Call node."""
@@ -76,7 +56,7 @@ class CommandExecutionValidator(Validator):
             return node.func.id
         return ""
 
-    def _sanitize(self, code: str) -> Optional[str]:
+    def _sanitize(self, code: str) -> str | None:
         """Apply only conservative fixes that preserve the original call shape."""
         if "os.system" in code:
             return None

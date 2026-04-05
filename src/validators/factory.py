@@ -1,33 +1,29 @@
-"""Factory for creating configured Guardrails Guard with all validators."""
+"""Factory for creating configured code safety pipeline with all validators."""
 
-from guardrails import Guard, OnFailAction
-
+from src.pipeline import ValidatorPipeline
 from src.validators.sql_injection import SQLInjectionValidator
 from src.validators.command_execution import CommandExecutionValidator
 from src.validators.secrets_scanner import SecretsValidator
 from src.validators.malicious_imports import MaliciousImportsValidator
 
-
-def create_code_guard(strict: bool = False) -> Guard:
+def create_code_guard(strict: bool = False) -> ValidatorPipeline:
     """
-    Create a Guard instance with all security validators.
+    Create a ValidatorPipeline instance with all security validators.
 
     Args:
         strict: Enable strict import blocking
 
     Returns:
-        Configured Guard instance
+        Configured ValidatorPipeline instance
     """
-    guard = Guard(name="code_security")
+    validators = [
+        SQLInjectionValidator(),
+        CommandExecutionValidator(),
+        SecretsValidator(),
+        MaliciousImportsValidator(strict=strict),
+    ]
 
-    guard.use(SQLInjectionValidator(on_fail=OnFailAction.FIX))
-    guard.use(CommandExecutionValidator(on_fail=OnFailAction.NOOP))
-    guard.use(SecretsValidator(on_fail=OnFailAction.FIX))
-    guard.use(
-        MaliciousImportsValidator(
-            strict=strict,
-            on_fail=OnFailAction.NOOP if strict else OnFailAction.FIX,
-        )
-    )
+    return ValidatorPipeline(validators=validators)
 
-    return guard
+def get_pipeline(strict: bool = False) -> ValidatorPipeline:
+    return create_code_guard(strict)
