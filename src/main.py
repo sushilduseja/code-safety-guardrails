@@ -162,7 +162,7 @@ async def metrics():
     return PlainTextResponse("\n".join(lines) + "\n")
 
 @app.get("/audit")
-async def audit(
+def audit(
     tenant_id: str,
     passed: Optional[bool] = None,
     limit: int = 100,
@@ -229,6 +229,22 @@ async def index() -> FileResponse:
     """Serve the portfolio demo from the repository root."""
     return FileResponse(Path(__file__).parent.parent / "index.html")
 
+def _log_audit(request_id, tenant_id, prompt_hash, language, strict, validators_run_json, issues_json, passed_int, raw_code_hash, protected_code_hash, latency_ms):
+    try:
+        with connect() as conn:
+            conn.execute(
+                """INSERT INTO audit_log (
+                    request_id, tenant_id, prompt_hash, language, strict,
+                    validators_run, issues_found, passed, raw_code_hash, protected_code_hash, latency_ms
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+                (
+                    request_id, tenant_id, prompt_hash, language, strict,
+                    validators_run_json, issues_json, passed_int, raw_code_hash, protected_code_hash, latency_ms
+                )
+            )
+    except Exception as e:
+        logger.error(f"Failed to write audit log: {e}")
+
 @app.post("/generate", response_model=GenerateResponse)
 @limiter.limit(get_tenant_limit)
 async def generate(
@@ -247,11 +263,14 @@ async def generate(
     issues = []
     failed_validators = []
     
+    validators_run = []
+    
     try:
         groq_client = get_groq_client()
         raw_code = await groq_client.generate_code(req.prompt, req.language)
         
         pipeline = get_pipeline(strict=req.strict)
+        validators_run = [getattr(v, "name", "unknown") for v in getattr(pipeline, "validators", [])]
         result = pipeline.validate(raw_code)
         
         passed = result.passed and len(result.issues) == 0
@@ -270,22 +289,14 @@ async def generate(
         raw_code_hash = hashlib.sha256(raw_code.encode()).hexdigest() if raw_code else None
         protected_code_hash = hashlib.sha256(validated_code.encode()).hexdigest() if validated_code else None
         
-        try:
-            with connect() as conn:
-                conn.execute(
-                    """INSERT INTO audit_log (
-                        request_id, tenant_id, prompt_hash, language, strict,
-                        validators_run, issues_found, passed, raw_code_hash, protected_code_hash, latency_ms
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
-                    (
-                        request_id, tenant_id, prompt_hash, req.language, int(req.strict),
-                        json.dumps([v.name for v in get_pipeline(req.strict).validators]),
-                        json.dumps([i.model_dump() for i in issues]),
-                        int(passed), raw_code_hash, protected_code_hash, latency_ms
-                    )
-                )
-        except Exception as e:
-            logger.error(f"Failed to write audit log: {e}")
+        validators_run_json = json.dumps(validators_run)
+        issues_json = json.dumps([i.model_dump() for i in issues])
+        
+        await asyncio.to_thread(
+            _log_audit,
+            request_id, tenant_id, prompt_hash, req.language, int(req.strict),
+            validators_run_json, issues_json, int(passed), raw_code_hash, protected_code_hash, latency_ms
+        )
             
         record_metric(tenant_id, passed, failed_validators, latency_ms)
         
