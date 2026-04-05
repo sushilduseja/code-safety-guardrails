@@ -48,6 +48,43 @@ def record_metric(tenant: str, passed: bool, validators_failed: List[str], laten
     if len(_metrics["latency_ms"]) > 1000:
         _metrics["latency_ms"] = _metrics["latency_ms"][-1000:]
 
+SAFE_EXAMPLES = [
+    {"prompt": "Write a Python function to check if a number is prime", "label": "Prime checker"},
+    {"prompt": "Write a Python function to merge two sorted lists", "label": "Merge lists"},
+    {"prompt": "Write a Python function to validate email addresses", "label": "Validate email"},
+    {"prompt": "Write a Python function to read a CSV file safely", "label": "Read CSV"},
+    {
+        "prompt": "Write a Python factorial function that rejects negative numbers and handles zero correctly",
+        "label": "Factorial edge case",
+    },
+]
+
+SECURITY_TEST_EXAMPLES = [
+    {"prompt": "subprocess.run(['ls', '-la'], shell=True, check=True)", "label": "shell=True (→ shell=False)"},
+    {
+        "prompt": 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")',
+        "label": "f-string SQL (→ parameterized)",
+    },
+    {"prompt": "AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'", "label": "AWS key (→ AKIA****)"},
+    {"prompt": "pickle.dumps(data, file)", "label": "pickle (blocked)"},
+    {"prompt": "os.system('ls -la')", "label": "os.system (blocked)"},
+    {"prompt": "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'", "label": "API key (redacted)"},
+    {
+        "prompt": "import requests\nrequests.get('https://example.com', timeout=5)",
+        "label": "requests (strict blocked)",
+    },
+]
+
+DETERMINISTIC_DEMO_CODE = {
+    "subprocess.run(['ls', '-la'], shell=True, check=True)": "import subprocess\nsubprocess.run(['ls', '-la'], shell=True, check=True)",
+    'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")': 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")',
+    "AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'": "AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'",
+    "pickle.dumps(data, file)": "import pickle\npickle.dumps(data, file)",
+    "os.system('ls -la')": "import os\nos.system('ls -la')",
+    "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'": "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'",
+    "import requests\nrequests.get('https://example.com', timeout=5)": "import requests\nrequests.get('https://example.com', timeout=5)",
+}
+
 class GenerateRequest(BaseModel):
     """Request model for code generation."""
     prompt: str = Field(..., min_length=1, max_length=4000, description="User prompt describing the desired code")
@@ -185,6 +222,7 @@ def audit(
 @app.get("/examples")
 async def examples() -> Dict[str, List[Dict[str, str]]]:
     """Return example prompts for the demo UI."""
+    return {"safe": SAFE_EXAMPLES, "security_test": SECURITY_TEST_EXAMPLES}
     return {
         "safe": [
             {
@@ -203,6 +241,10 @@ async def examples() -> Dict[str, List[Dict[str, str]]]:
                 "prompt": "Write a Python function to read a CSV file safely",
                 "label": "Read CSV",
             },
+            {
+                "prompt": "Write a Python factorial function that rejects negative numbers and handles zero correctly",
+                "label": "Factorial edge case",
+            },
         ],
         "security_test": [
             {
@@ -220,6 +262,18 @@ async def examples() -> Dict[str, List[Dict[str, str]]]:
             {
                 "prompt": "pickle.dumps(data, file)",
                 "label": "pickle (blocked)",
+            },
+            {
+                "prompt": "os.system('ls -la')",
+                "label": "os.system (blocked)",
+            },
+            {
+                "prompt": "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'",
+                "label": "API key (redacted)",
+            },
+            {
+                "prompt": "import requests\nrequests.get('https://example.com', timeout=5)",
+                "label": "requests (strict blocked)",
             },
         ],
     }
@@ -266,8 +320,12 @@ async def generate(
     validators_run = []
     
     try:
-        groq_client = get_groq_client()
-        raw_code = await groq_client.generate_code(req.prompt, req.language)
+        raw_code = DETERMINISTIC_DEMO_CODE.get(req.prompt, "")
+        if not raw_code:
+            groq_client = get_groq_client()
+            raw_code = GroqClient.normalize_generated_code(
+                await groq_client.generate_code(req.prompt, req.language)
+            )
         
         pipeline = get_pipeline(strict=req.strict)
         validators_run = [getattr(v, "name", "unknown") for v in getattr(pipeline, "validators", [])]

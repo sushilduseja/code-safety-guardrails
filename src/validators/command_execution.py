@@ -61,6 +61,11 @@ class CommandExecutionValidator:
         if "os.system" in code:
             return None
         if self.SHELL_TRUE_PATTERN.search(code):
-            code = re.sub(r'shell\s*=\s*True', 'shell=False, check=True', code)
-            return code + "\n# SECURITY: Disabled shell and enabled check=True"
+            replacement = "shell=False"
+            note = "Disabled shell"
+            if "check=True" not in code:
+                replacement += ", check=True"
+                note += " and enabled check=True"
+            code = re.sub(r'shell\s*=\s*True', replacement, code)
+            return code + f"\n# SECURITY: {note}"
         return None

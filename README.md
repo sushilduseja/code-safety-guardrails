@@ -27,6 +27,10 @@ uvicorn src.main:app --reload
 
 Then visit **http://localhost:8000/** for the demo.
 
+The demo now has two paths:
+- Safe prompts that go through normal model generation.
+- Deterministic security demos that feed known-unsafe code into the validator pipeline so **Raw Output** and **Protected Output** visibly diverge when a rewrite or block happens.
+
 ## Deployment (Render)
 
 Deploy as a **full-stack** app (not static):
@@ -47,6 +51,7 @@ The frontend reads API URL from `VITE_API_URL` environment variable (local dev d
 - Internal, zero-dependency `ValidatorPipeline` (60 lines) replacing heavy guardrail libraries
 - 4 security validators: SQL injection, command execution, secrets detection, malicious imports
 - Safe code rewriting: AST-based SQL query rewriting, regex sanitization
+- Deterministic negative demo cases for validator rewrites and hard blocks
 - Fully local and isolated execution pipeline (~30 MB install footprint)
 - Fails closed on parsing/AST errors and blocked patterns
 - Persistent rate limiting via Redis and `slowapi`

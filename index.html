@@ -730,18 +730,28 @@
 
     let currentController = null;
 
+    function renderExampleButtons(container, items, negative = false) {
+      const fragment = document.createDocumentFragment();
+
+      items.forEach(item => {
+        const button = document.createElement('button');
+        button.type = 'button';
+        button.className = negative ? 'example-btn negative' : 'example-btn';
+        button.dataset.prompt = item.prompt;
+        button.textContent = item.label;
+        fragment.appendChild(button);
+      });
+
+      container.replaceChildren(fragment);
+    }
+
     async function loadExamples() {
       try {
         const res = await fetch(`${API_BASE}/examples`);
         const data = await res.json();
-        
-        state.safeExamples.innerHTML = data.safe.map(item => 
-          `<button class="example-btn" data-prompt="${item.prompt}">${item.label}</button>`
-        ).join('');
-        
-        state.securityExamples.innerHTML = data.security_test.map(item => 
-          `<button class="example-btn negative" data-prompt="${item.prompt}">${item.label}</button>`
-        ).join('');
+
+        renderExampleButtons(state.safeExamples, data.safe);
+        renderExampleButtons(state.securityExamples, data.security_test, true);
         
         attachExampleListeners();
       } catch (e) {
@@ -826,6 +836,16 @@
       state.resultMeta.hidden = false;
     }
 
+    function getProtectedOutput(data) {
+      if (data.protected_code) {
+        return data.protected_code;
+      }
+      if (data.passed) {
+        return data.code || '// No code generated';
+      }
+      return '// Blocked: no safe rewrite available';
+    }
+
     async function generate() {
       const prompt = state.prompt.value.trim();
       if (!prompt) {
@@ -863,7 +883,7 @@
         }
 
         const rawCode = data.raw_code || '// No code generated';
-        const protectedCode = data.protected_code || data.code || '// No code generated';
+        const protectedCode = getProtectedOutput(data);
         
         state.codeOutput.textContent = rawCode;
         await streamCode(protectedCode, data.issues && data.issues.length > 0);

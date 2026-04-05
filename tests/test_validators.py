@@ -81,6 +81,14 @@ class TestCommandExecutionValidator:
         passed, fix, msg = validator.validate(code)
         assert fix is not None
         assert "shell=False" in fix
+        assert "check=True" in fix
+
+    def test_shell_true_fix_does_not_duplicate_check_true(self, validator):
+        code = "subprocess.run(['ls'], shell=True, check=True)"
+        passed, fix, msg = validator.validate(code)
+        assert not passed
+        assert fix is not None
+        assert fix.count("check=True") == 1
 
     def test_passes_safe_subprocess(self, validator):
         code = "subprocess.run(['ls'], shell=False, check=True)"
@@ -117,6 +125,13 @@ class TestSecretsValidator:
         passed, fix, msg = validator.validate(code)
         assert not passed
 
+    def test_redacts_api_key_assignment(self, validator):
+        code = 'api_key = "super-secret-key-12345"'
+        passed, fix, msg = validator.validate(code)
+        assert not passed
+        assert 'super-secret-key-12345' not in fix
+        assert 'api_key="***"' in fix
+
     def test_passes_env_var(self, validator):
         code = 'db_pass = os.environ.get("DB_PASSWORD")'
         passed, fix, msg = validator.validate(code)
@@ -152,6 +167,18 @@ class TestMaliciousImportsValidator:
         code = "import socket"
         passed, fix, msg = strict_validator.validate(code)
         assert not passed
+
+    def test_strict_mode_blocks_requests(self):
+        strict_validator = MaliciousImportsValidator(strict=True)
+        code = "import requests\nrequests.get('https://example.com')"
+        passed, fix, msg = strict_validator.validate(code)
+        assert not passed
+        assert "requests" in msg
+
+    def test_normal_mode_allows_requests(self, validator):
+        code = "import requests\nrequests.get('https://example.com')"
+        passed, fix, msg = validator.validate(code)
+        assert passed
 
     def test_normal_allows_json(self, validator):
         code = "import json"

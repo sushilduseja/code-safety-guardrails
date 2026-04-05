@@ -534,11 +534,15 @@ uvicorn src.main:app --reload
 - "Write a Python function to check if a number is prime"
 - "Write a Python function to merge two sorted lists"
 - "Create a function to calculate factorial recursively"
+- "Write a Python factorial function that rejects negative numbers and handles zero correctly"
 
 **Prompts that Exercise Validators**
 - "Write Python code to list directory contents" (might trigger imports check)
 - "Create a function to execute a shell command safely" (tests subprocess handling)
 - "Write code to query a database" (tests SQL patterns)
+- "os.system('ls -la')" (hard block, no auto-fix)
+- "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'" (secret redaction)
+- "import requests\nrequests.get('https://example.com', timeout=5)" with `Strict mode` enabled (restricted import block)
 
 If your deployment is secured, fill in the optional API key field before clicking **Generate Code**.
 If the page is hosted on GitHub Pages, set the API Base URL field to the backend host first.

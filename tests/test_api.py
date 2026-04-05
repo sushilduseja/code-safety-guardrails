@@ -117,3 +117,82 @@ def test_root_serves_demo_index():
     assert response.status_code == 200
     assert "Code Safety Guardrails" in response.text
 
+
+def test_examples_endpoint_includes_corner_case_demos():
+    response = request_json("GET", "/examples")
+
+    assert response.status_code == 200
+    body = response.json()
+
+    safe_labels = {item["label"] for item in body["safe"]}
+    security_labels = {item["label"] for item in body["security_test"]}
+
+    assert "Factorial edge case" in safe_labels
+    assert "os.system (blocked)" in security_labels
+    assert "API key (redacted)" in security_labels
+    assert "requests (strict blocked)" in security_labels
+
+
+def test_generate_uses_deterministic_shell_demo_rewrite():
+    response = request_json(
+        "POST",
+        "/generate",
+        json={"prompt": "subprocess.run(['ls', '-la'], shell=True, check=True)", "language": "python", "strict": False},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["raw_code"] == "import subprocess\nsubprocess.run(['ls', '-la'], shell=True, check=True)"
+    assert "shell=False" in body["protected_code"]
+    assert body["issues"][0]["validator"] == "code/command_execution"
+
+
+def test_generate_uses_deterministic_sql_demo_rewrite():
+    response = request_json(
+        "POST",
+        "/generate",
+        json={"prompt": 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")', "language": "python", "strict": False},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["raw_code"] == 'cursor.execute(f"SELECT * FROM users WHERE id = {user_id}")'
+    assert body["protected_code"] == "cursor.execute('SELECT * FROM users WHERE id = ?', (user_id,))"
+    assert body["issues"][0]["validator"] == "code/sql_injection"
+
+
+def test_generate_uses_deterministic_blocked_strict_demo():
+    response = request_json(
+        "POST",
+        "/generate",
+        json={"prompt": "import requests\nrequests.get('https://example.com', timeout=5)", "language": "python", "strict": True},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["raw_code"] == "import requests\nrequests.get('https://example.com', timeout=5)"
+    assert body["protected_code"] == ""
+    assert body["passed"] is False
+    assert body["issues"][0]["validator"] == "code/malicious_imports"
+
+
+def test_generate_strips_markdown_fences_before_validation(monkeypatch):
+    monkeypatch.setattr(
+        main_module,
+        "get_groq_client",
+        lambda: StubGroqClient("```python\ndef is_prime(n):\n    return n > 1\n```"),
+    )
+
+    response = request_json(
+        "POST",
+        "/generate",
+        json={"prompt": "write code", "language": "python", "strict": True},
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["passed"] is True
+    assert body["raw_code"] == "def is_prime(n):\n    return n > 1"
+    assert body["protected_code"] == "def is_prime(n):\n    return n > 1"
+    assert body["issues"] == []
+

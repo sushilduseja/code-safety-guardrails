@@ -41,9 +41,10 @@ class GroqClient:
             self._call_model(full_prompt),
             timeout=TIMEOUT_SECONDS,
         )
-        if not response.strip():
+        normalized = self.normalize_generated_code(response)
+        if not normalized:
             raise RuntimeError("Groq returned an empty response")
-        return response.strip()
+        return normalized
 
     @staticmethod
     def build_prompt(prompt: str, language: Literal["python"] = "python") -> str:
@@ -61,6 +62,23 @@ class GroqClient:
             f"{prompt}\n"
             "</UNTRUSTED_USER_TASK>"
         )
+
+    @staticmethod
+    def normalize_generated_code(response: str) -> str:
+        """Strip markdown wrappers that some models return despite prompt constraints."""
+        text = response.strip()
+        if not text:
+            return ""
+
+        if text.startswith("```"):
+            lines = text.splitlines()
+            if lines and lines[0].startswith("```"):
+                lines = lines[1:]
+            if lines and lines[-1].strip() == "```":
+                lines = lines[:-1]
+            text = "\n".join(lines).strip()
+
+        return text
 
     async def _call_model(self, prompt: str) -> str:
         completion = await self.client.chat.completions.create(
