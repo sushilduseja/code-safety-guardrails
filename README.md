@@ -1,4 +1,4 @@
-# Code Safety Guardrails
+# Code Safety Guardrails [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/sushilduseja/code-safety-guardrails)
 
 AI-powered Python code generation with integrated security validation using Groq.
 
