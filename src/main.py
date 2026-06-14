@@ -1,11 +1,11 @@
 import json
-import logging
 import os
 import sys
 import time
 import uuid
 import asyncio
 import contextvars
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 from typing import Dict, List, Literal, Optional
@@ -20,12 +20,11 @@ from src.groq_client import GroqClient
 from src.telemetry import Telemetry, SQLiteAuditAdapter, PrometheusMetricsAdapter
 from src.validators.factory import create_code_guard
 from src.db import init_db, resolve_key, connect, sha256hex
+from src.log_config import setup_logging, set_request_id, reset_request_id
 from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-logger = logging.getLogger(__name__)
 
 init_db()
 
@@ -79,6 +78,9 @@ class GenerateResponse(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_logging()
+    logging.info("Starting Code Safety Guardrails server")
+    
     registry_path = Path(__file__).parent.parent / "config" / "demo_registry.json"
     if registry_path.exists():
         registry = json.loads(registry_path.read_text()).get("prompts", {})
@@ -94,6 +96,7 @@ async def lifespan(app: FastAPI):
     app.state.telemetry = telemetry
 
     yield
+    logging.info("Shutting down Code Safety Guardrails server")
 
 
 app = FastAPI(title="Code Safety Guardrails", version="1.0.0", lifespan=lifespan)
@@ -103,12 +106,16 @@ request_ctx = contextvars.ContextVar("request")
 
 @app.middleware("http")
 async def add_request_context(request: Request, call_next):
-    token = request_ctx.set(request)
+    request_id = str(uuid.uuid4())
+    request.state.request_id = request_id
+    token_ctx = request_ctx.set(request)
+    token_rid = set_request_id(request_id)
     try:
         response = await call_next(request)
         return response
     finally:
-        request_ctx.reset(token)
+        request_ctx.reset(token_ctx)
+        reset_request_id(token_rid)
 
 
 def get_tenant_id(request: Request) -> str:
