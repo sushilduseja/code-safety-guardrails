@@ -1,0 +1,11 @@
+{
+  "prompts": {
+    "subprocess.run(['ls', '-la'], shell=True, check=True)": "import subprocess\nsubprocess.run(['ls', '-la'], shell=True, check=True)",
+    "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")": "cursor.execute(f\"SELECT * FROM users WHERE id = {user_id}\")",
+    "AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'": "AWS_ACCESS_KEY_ID = 'AKIAIOSFODNN7EXAMPLE'",
+    "pickle.dumps(data, file)": "import pickle\npickle.dumps(data, file)",
+    "os.system('ls -la')": "import os\nos.system('ls -la')",
+    "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'": "api_key = 'sk-ABCDEFGHIJKLMNOPQRSTUVWXYZ123456'",
+    "import requests\nrequests.get('https://example.com', timeout=5)": "import requests\nrequests.get('https://example.com', timeout=5)"
+  }
+}
