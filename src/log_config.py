@@ -18,23 +18,17 @@ def get_request_id() -> str:
     return _request_id.get()
 
 
-class StructuredFormatter(logging.Formatter):
+class HumanReadableFormatter(logging.Formatter):
     def format(self, record: logging.LogRecord) -> str:
-        return json.dumps(
-            {
-                "timestamp": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
-                "level": record.levelname,
-                "logger": record.name,
-                "request_id": get_request_id(),
-                "message": record.getMessage(),
-            },
-            default=str,
-        )
+        ts = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M:%S")
+        rid = get_request_id()
+        rid_str = f" [{rid}]" if rid else ""
+        return f"{ts} [{record.levelname}] [{record.name}]{rid_str} {record.getMessage()}"
 
 
 def setup_logging() -> None:
     handler = logging.StreamHandler()
-    handler.setFormatter(StructuredFormatter())
+    handler.setFormatter(HumanReadableFormatter())
     root = logging.getLogger()
     root.handlers.clear()
     root.addHandler(handler)
