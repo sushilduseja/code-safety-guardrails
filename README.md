@@ -34,7 +34,6 @@ Deploy as a **full-stack** app (not static):
 
 Set these **Render dashboard secrets**:
 - `GROQ_API_KEY` — Groq API key (required)
-- `CODE_SAFETY_API_KEY` — optional shared key for `/generate` auth
 - `RATE_LIMIT_REQUESTS_PER_MINUTE` — optional rate limit
 - `ENVIRONMENT` — set to `production` to enforce API key auth
 
@@ -65,13 +64,7 @@ curl -X POST http://localhost:8000/generate \
   -d '{"prompt": "Write a Python function to add two numbers", "language": "python"}'
 ```
 
-If `CODE_SAFETY_API_KEY` is configured:
-```bash
-curl -X POST http://localhost:8000/generate \
-  -H "Content-Type: application/json" \
-  -H "X-API-Key: change-me-for-shared-access" \
-  -d '{"prompt": "Write a Python function to add two numbers", "language": "python"}'
-```
+
 
 Response:
 ```json
