@@ -15,11 +15,6 @@ cp .env.example .env
 # Edit .env with your GROQ_API_KEY from https://console.groq.com/
 ```
 
-Optional:
-- Set `CODE_SAFETY_API_KEY` to require the `X-API-Key` header on `POST /generate`
-- Set `GROQ_TIMEOUT_SECONDS` to bound upstream model latency
-- Set `RATE_LIMIT_REQUESTS_PER_MINUTE` to cap caller traffic to `/generate`
-
 ### Run
 ```bash
 uvicorn src.main:app --reload
@@ -58,6 +53,7 @@ The frontend reads API URL from `VITE_API_URL` environment variable (local dev d
 - SQLite-backed API Key issuance per tenant
 - SQLite-backed request auditing and query logging
 - Endpoints for health checks (`/health`) and prometheus metrics (`/metrics`)
+- **Structured, human-readable logging with request IDs for traceability**
 - Interactive web demo for manual testing
 
 ## API
@@ -99,6 +95,27 @@ Health responses include:
 - `auth_required`
 - `rate_limit_per_minute`
 
+### `GET /metrics` - Prometheus metrics (authenticated)
+```bash
+curl -H "X-API-Key: $YOUR_KEY" http://localhost:8000/metrics
+```
+
+Returns Prometheus-format metrics including request counts, validator failures, and latency percentiles. Requires API key authentication.
+
+### `GET /audit` - Audit log (authenticated)
+```bash
+curl -H "X-API-Key: $YOUR_KEY" "http://localhost:8000/audit?tenant_id=$TENANT_ID"
+```
+
+Returns audit log entries for the authenticated tenant. Supports `passed`, `limit`, and `offset` query parameters.
+
+### `GET /examples` - Example prompts
+```bash
+curl http://localhost:8000/examples
+```
+
+Returns safe and security-test example prompts.
+
 ## Validators
 
 | Validator | Detects | Auto-Fix |
@@ -109,37 +126,47 @@ Health responses include:
 | **Malicious Imports** | pickle, ctypes, socket, __import__() | Blocks dangerous modules |
 
 ## Testing
-
 ```bash
 pytest tests -v
 ```
 
 ## Project Structure
 ```
-.impeccable.md
-EXAMPLES.md
-index.html
-README.md
-src/
-|-- main.py
-|-- groq_client.py
-`-- validators/
-    |-- sql_injection.py
-    |-- command_execution.py
-    |-- secrets_scanner.py
-    |-- malicious_imports.py
-    `-- factory.py
-tests/
-|-- test_api.py
-|-- test_demo_ui.py
-|-- test_groq_client.py
-`-- test_validators.py
+.
+├── AGENTS.md                 # Agent skills configuration
+├── CONTEXT.md                # This file
+├── README.md                 # Project documentation
+├── CHANGELOG.md              # Release notes
+├── VERSION                   # 0.0.1.0
+├── .impeccable.md            # Design context/brand personality
+├── config/
+│   ├── prompts.py            # Groq system prompt
+│   └── demo_registry.json    # Prompt→canned-code mappings (ADR-0006)
+├── src/
+│   ├── main.py               # FastAPI entry point + lifespan + Depends wiring
+│   ├── deps.py               # Depends() injection functions (ADR-0008)
+│   ├── groq_client.py        # Groq API wrapper
+│   ├── generator.py          # CodeGenerator seam (ADR-0006)
+│   ├── telemetry.py          # Telemetry + AuditAdapter + MetricsAdapter seams (ADR-0007)
+│   ├── pipeline.py           # ValidatorPipeline (39 lines)
+│   ├── db.py                 # SQLite persistence (56 lines)
+│   ├── log_config.py         # Logging configuration and formatters
+│   ├── cli.py                # API key CLI tool
+│   └── validators/
+│       ├── factory.py        # Pipeline builder (29 lines)
+│       ├── sql_injection.py  # SQL injection detection (82 lines)
+│       ├── command_execution.py  # Command execution (71 lines)
+│       ├── secrets_scanner.py    # Secrets detection (32 lines)
+│       └── malicious_imports.py  # Malicious imports (64 lines)
+├── index.html                # Demo frontend
+├── requirements.lock         # Frozen dependency tree for reproducible builds
+├── tests/
+│   ├── test_api.py           # API endpoint tests
+│   ├── test_groq_client.py   # Groq client tests
+│   ├── test_validators.py    # Validator unit tests
+│   └── test_demo_ui.py       # DOM contract tests
+└── docs/agents/              # Agent skill configuration
 ```
-
-## Real-World Examples
-
-See [EXAMPLES.md](./EXAMPLES.md) for practical validator examples. Some examples are illustrative and should not be treated as production guarantees.
-See [.impeccable.md](./.impeccable.md) for the saved demo design context used to keep the portfolio UI consistent.
 
 ## Dependencies
 
@@ -148,6 +175,8 @@ See [.impeccable.md](./.impeccable.md) for the saved demo design context used to
 - Pydantic - Data validation
 - pytest - Testing
 - slowapi - Rate limiting
+- python-dotenv - Environment variables
+- redis - Rate limit storage (optional, defaults to in-memory)
 
 ## License
 

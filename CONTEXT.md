@@ -14,24 +14,24 @@
 
 ```
 [Browser] ── POST /generate ──► [FastAPI]
-                                       │
-                                       ▼
-                              [Depends() injection]
-                          ┌─────────────────┐
-                          │ CodeGenerator   │──► [DemoCodeGenerator ─?─► RealCodeGenerator ──► Groq API]
-                          │ Telemetry       │──► [AuditAdapter + MetricsAdapter]
-                          │ ValidatorPipeline│──► [stateless factory call]
-                          └─────────────────┘
-                                       │
-                                       ▼
-                               [ValidatorPipeline]
-                                   │  ├─ SQLInjectionValidator
-                                   │  ├─ CommandExecutionValidator
-                                   │  ├─ SecretsValidator
-                                   │  └─ MaliciousImportsValidator
-                                   │
-                                   ▼
-                     GenerateResponse{raw_code, protected_code, passed, issues}
+                                        │
+                                        ▼
+                               [Depends() injection]
+                           ┌─────────────────┐
+                           │ CodeGenerator   │──► [DemoCodeGenerator ─?─► RealCodeGenerator ──► Groq API]
+                           │ Telemetry       │──► [AuditAdapter + MetricsAdapter]
+                           │ ValidatorPipeline│──► [stateless factory call]
+                           └─────────────────┘
+                                        │
+                                        ▼
+                                [ValidatorPipeline]
+                                    │  ├─ SQLInjectionValidator
+                                    │  ├─ CommandExecutionValidator
+                                    │  ├─ SecretsValidator
+                                    │  └─ MaliciousImportsValidator
+                                    │
+                                    ▼
+                      GenerateResponse{raw_code, protected_code, passed, issues}
 ```
 
 Dependencies constructed at startup via FastAPI `lifespan`, stored in `app.state`, injected via `Depends()` (ADR-0008). No module-level globals.
@@ -42,6 +42,7 @@ Dependencies constructed at startup via FastAPI `lifespan`, stored in `app.state
 - **Fails closed** — any pipeline exception → `passed=False`, protected_code empty
 - **Non-streaming** — typewriter effect in UI is visual-only (character-by-character rendering of full response)
 - **Single-process** — FastAPI runs uvicorn, SQLite is the only persistence layer
+- **Structured logging** — human-readable logs with request IDs for traceability via `log_config.py`
 
 ---
 
@@ -64,8 +65,11 @@ Dependencies constructed at startup via FastAPI `lifespan`, stored in `app.state
 | **AuditAdapter** | Seam for recording audit log entries (SQLite in prod, null in tests) | Stores hashes only; no plaintext prompts |
 | **MetricsAdapter** | Seam for recording operational metrics (Prometheus in prod, null in tests) | Per-tenant counts, validator failures, latency percentiles |
 | **Telemetry** | Module that combines timing + audit + metrics behind a context manager: `async with telemetry.timed(): ...` | Owns the `time.monotonic()` timing |
+| **Logger** | Structured, human-readable logging with request IDs for traceability | Configured via `log_config.py`, includes request ID in all log entries |
 
-### Validators
+---
+
+## Validators
 
 | Validator | Name | Detection Method | Fixable? | Blocking? |
 |-----------|------|-----------------|----------|-----------|
@@ -74,7 +78,9 @@ Dependencies constructed at startup via FastAPI `lifespan`, stored in `app.state
 | SecretsValidator | `code/secrets_exposure` | Regex (7 patterns) | Yes — redacts in-place | No |
 | MaliciousImportsValidator | `code/malicious_imports` | AST walk (import statements) | No — always blocking | Yes |
 
-### Validator Pipeline Configuration
+---
+
+## Validator Pipeline Configuration
 
 Validators execute in this fixed order via `create_code_guard(strict=False)`:
 
@@ -84,21 +90,25 @@ SQLInjectionValidator → CommandExecutionValidator → SecretsValidator → Mal
 
 Strict mode (`strict=True`) adds network imports (`socket`, `requests`, `urllib`, `ftplib`, `smtplib`) to the blocked list. Always-blocked modules: `pickle`, `marshal`, `shelve`, `ctypes`.
 
-### API Endpoints
+---
+
+## API Endpoints
 
 | Method | Path | Auth Required | Purpose |
 |--------|------|---------------|---------|
 | GET | `/` | No | Serves `index.html` demo UI |
 | GET | `/health` | No | Groq reachability + validator count |
 | GET | `/examples` | No | Safe + security-test example prompts |
-| GET | `/metrics` | No | Prometheus-format: request counts, validator failures, latency percentiles |
-| GET | `/audit` | Yes (`X-API-Key`) | Audit log query by tenant, optional `passed` filter |
+| GET | `/metrics` | **Yes** (`X-API-Key`) | Prometheus-format: request counts, validator failures, latency percentiles |
+| GET | `/audit` | **Yes** (`X-API-Key`) | Audit log query by tenant, optional `passed` filter |
 | POST | `/generate` | Dev-bypass / API key | Main endpoint: generate + validate code |
 
-### Environments
+---
+
+## Environments
 
 | ENVIRONMENT value | API Key Auth | Default RPM |
-|------------------|-------------|-------------|
+|-------------------|-------------|-------------|
 | `development` | No — auto-assigns tenant_id="dev" | 60 |
 | `test` | No — auto-assigns tenant_id="dev" | 60 |
 | `production` | Yes — requires valid X-API-Key header | Per-key limit from api_keys table |
@@ -119,9 +129,9 @@ Strict mode (`strict=True`) adds network imports (`socket`, `requests`, `urllib`
 3. Check DETERMINISTIC_DEMO_CODE
    ├─ match → skip Groq, use canned unsafe code
    └─ no match → GroqClient.generate_code(prompt)
-       ├─ build_prompt() wraps with <SYSTEM_POLICY><UNTRUSTED_USER_TASK> tags
-       ├─ AsyncGroq.chat.completions.create(model, temperature=0.3)
-       └─ normalize_generated_code() strips markdown fences
+        ├─ build_prompt() wraps with <SYSTEM_POLICY><UNTRUSTED_USER_TASK> tags
+        ├─ AsyncGroq.chat.completions.create(model, temperature=0.3)
+        └─ normalize_generated_code() strips markdown fences
 
 4. pipeline.validate(raw_code)
    ├─ Runs validators sequentially, applies fixes to output string
@@ -135,7 +145,9 @@ Strict mode (`strict=True`) adds network imports (`socket`, `requests`, `urllib`
 6. Return GenerateResponse(code, passed, issues, raw_code, protected_code)
 ```
 
-### Pipeline validate() Semantics
+---
+
+## Pipeline validate() Semantics
 
 ```python
 def validate(code: str) -> PipelineResult:
@@ -315,7 +327,7 @@ pytest tests/ -v -k <name>  # Run specific test
 ```
 /
 ├── AGENTS.md                 # Agent skills configuration
-├── CONTEXT.md                ← This file
+├── CONTEXT.md                # This file
 ├── README.md                 # Project documentation
 ├── CHANGELOG.md              # Release notes
 ├── VERSION                   # 0.0.1.0
@@ -326,11 +338,12 @@ pytest tests/ -v -k <name>  # Run specific test
 ├── src/
 │   ├── main.py               # FastAPI entry point + lifespan + Depends wiring
 │   ├── deps.py               # Depends() injection functions (ADR-0008)
-│   ├── groq_client.py        # Groq API wrapper; optionally contains SYSTEM_PROMPT
+│   ├── groq_client.py        # Groq API wrapper
 │   ├── generator.py          # CodeGenerator seam (ADR-0006)
 │   ├── telemetry.py          # Telemetry + AuditAdapter + MetricsAdapter seams (ADR-0007)
 │   ├── pipeline.py           # ValidatorPipeline (39 lines)
 │   ├── db.py                 # SQLite persistence (56 lines)
+│   ├── log_config.py         # Logging configuration and formatters
 │   ├── cli.py                # API key CLI tool
 │   └── validators/
 │       ├── factory.py        # Pipeline builder (29 lines)
@@ -339,6 +352,7 @@ pytest tests/ -v -k <name>  # Run specific test
 │       ├── secrets_scanner.py    # Secrets detection (32 lines)
 │       └── malicious_imports.py  # Malicious imports (64 lines)
 ├── index.html                # Demo frontend
+├── requirements.lock         # Frozen dependency tree for reproducible builds
 ├── tests/
 │   ├── test_api.py           # API endpoint tests
 │   ├── test_groq_client.py   # Groq client tests
@@ -346,6 +360,8 @@ pytest tests/ -v -k <name>  # Run specific test
 │   └── test_demo_ui.py       # DOM contract tests
 └── docs/agents/              # Agent skill configuration
 ```
+
+---
 
 ## Architectural Invariants
 
@@ -357,3 +373,4 @@ pytest tests/ -v -k <name>  # Run specific test
 - **Seams are injected via Depends().** `CodeGenerator` and `Telemetry` are constructed at startup (FastAPI `lifespan`), stored in `app.state`, and injected per-handler via per-dependency `Depends()` functions (ADR-0008). Tests override individual deps without monkey-patching.
 - **DemoCodeGenerator wraps RealCodeGenerator.** The `CodeGenerator` seam is a chain: `DemoCodeGenerator(registry, RealCodeGenerator(groq_client))`. Known prompts match the registry and skip Groq; unknown prompts fall through to the real generator (ADR-0006).
 - **Telemetry owns two adapters.** `AuditAdapter` (SQLite/Null) and `MetricsAdapter` (Prometheus/Null) are separate seams wrapped by `Telemetry.record()` (ADR-0007).
+- **Logging is configured via `log_config.py`** — provides human-readable, structured logs with request IDs for traceability. All loggers (including `auth` and telemetry) use this format.
