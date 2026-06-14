@@ -1,17 +1,14 @@
-"""FastAPI application with custom ValidatorPipeline integration."""
-
 import json
 import logging
 import os
 import sys
 import time
 import uuid
-import hashlib
 import asyncio
 import contextvars
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Literal, Optional
+from typing import Dict, List, Literal, Optional
 
 from fastapi import Depends, FastAPI, Header, HTTPException, Request
 from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
@@ -21,8 +18,8 @@ from src.deps import get_code_generator, get_telemetry
 from src.generator import CodeGenerator, DemoCodeGenerator, RealCodeGenerator
 from src.groq_client import GroqClient
 from src.telemetry import Telemetry, SQLiteAuditAdapter, PrometheusMetricsAdapter
-from src.validators.factory import get_pipeline
-from src.db import init_db, resolve_key, connect
+from src.validators.factory import create_code_guard
+from src.db import init_db, resolve_key, connect, sha256hex
 from slowapi import Limiter
 from slowapi.middleware import SlowAPIMiddleware
 
@@ -133,8 +130,12 @@ def get_groq_client() -> GroqClient:
     return _groq_client
 
 
+_auth_logger = logging.getLogger("auth")
+
+
 def require_api_key(request: Request, x_api_key: Optional[str] = Header(default=None)) -> None:
     environment = os.getenv("ENVIRONMENT", "development").lower()
+    client_host = request.client.host if request.client else "unknown"
 
     if environment in {"development", "test"} and not x_api_key:
         request.state.tenant_id = "dev"
@@ -142,10 +143,12 @@ def require_api_key(request: Request, x_api_key: Optional[str] = Header(default=
         return
 
     if not x_api_key:
+        _auth_logger.warning("Auth failure: missing key from %s", client_host)
         raise HTTPException(status_code=401, detail="Missing API key")
 
     row = resolve_key(x_api_key)
     if not row:
+        _auth_logger.warning("Auth failure: invalid key from %s", client_host)
         raise HTTPException(status_code=401, detail="Invalid API key")
 
     request.state.tenant_id = row["tenant_id"]
@@ -173,20 +176,23 @@ async def health():
         content={
             "status": "ok" if groq_ok else "degraded",
             "groq_reachable": groq_ok,
-            "validators_loaded": len(get_pipeline().validators),
+            "validators_loaded": len(create_code_guard().validators),
             "version": os.getenv("APP_VERSION", "dev"),
         }
     )
 
 
 @app.get("/metrics")
-async def metrics(telemetry: Telemetry = Depends(get_telemetry)):
+async def metrics(
+    telemetry: Telemetry = Depends(get_telemetry),
+    _auth: None = Depends(require_api_key),
+):
     return PlainTextResponse(telemetry.metrics.render())
 
 
 @app.get("/audit")
 def audit(
-    tenant_id: str,
+    request: Request,
     passed: Optional[bool] = None,
     limit: int = 100,
     offset: int = 0,
@@ -194,7 +200,7 @@ def audit(
 ):
     with connect() as conn:
         query = "SELECT * FROM audit_log WHERE tenant_id=?"
-        params = [tenant_id]
+        params = [request.state.tenant_id]
         if passed is not None:
             query += " AND passed=?"
             params.append(1 if passed else 0)
@@ -228,7 +234,7 @@ async def generate(
     start_time = time.monotonic()
     request_id = str(uuid.uuid4())
     tenant_id = getattr(request.state, "tenant_id", "unknown")
-    prompt_hash = hashlib.sha256(req.prompt.encode()).hexdigest()
+    prompt_hash = sha256hex(req.prompt)
 
     passed = False
     raw_code = ""
@@ -240,7 +246,7 @@ async def generate(
     try:
         raw_code = await generator.generate(req.prompt, req.language)
 
-        pipeline = get_pipeline(strict=req.strict)
+        pipeline = create_code_guard(strict=req.strict)
         validators_run = [getattr(v, "name", "unknown") for v in pipeline.validators]
         result = pipeline.validate(raw_code)
 
@@ -255,8 +261,8 @@ async def generate(
     finally:
         latency_ms = int((time.monotonic() - start_time) * 1000)
 
-        raw_code_hash = hashlib.sha256(raw_code.encode()).hexdigest() if raw_code else None
-        protected_code_hash = hashlib.sha256(validated_code.encode()).hexdigest() if validated_code else None
+        raw_code_hash = sha256hex(raw_code) if raw_code else None
+        protected_code_hash = sha256hex(validated_code) if validated_code else None
 
         await telemetry.record(
             request_id, tenant_id, prompt_hash, req.language, req.strict,

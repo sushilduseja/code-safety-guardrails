@@ -167,24 +167,6 @@
       color: var(--text-tertiary);
     }
 
-    .panel-badge {
-      font-size: 0.7rem;
-      font-weight: 500;
-      padding: 3px 8px;
-      border-radius: var(--radius);
-      background: var(--surface-raised);
-      color: var(--text-tertiary);
-    }
-
-    .output-panel.protected .panel-badge {
-      background: var(--accent-light);
-      color: var(--accent-dark);
-    }
-
-    .output-panel.protected {
-      border-color: var(--accent);
-    }
-
     .panel-label {
       font-size: 0.75rem;
       color: var(--text-tertiary);
@@ -208,46 +190,10 @@
     textarea::placeholder { color: var(--text-tertiary); }
     textarea:focus { outline: none; border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-light); }
 
-    .output {
-      min-height: 280px;
-      padding: 16px;
-      background: var(--output-bg);
-      border-radius: var(--radius);
-      overflow: auto;
-      flex: 1;
-    }
-
-    .output code {
-      font-family: var(--font-mono);
-      font-size: 0.8125rem;
-      line-height: 1.6;
-      color: var(--output-code);
-      white-space: pre-wrap;
-      word-break: break-all;
-    }
-
-    .output code .cursor {
-      display: inline-block;
-      width: 2px;
-      height: 1.1em;
-      background: var(--output-code);
-      margin-left: 1px;
-      vertical-align: text-bottom;
-      animation: blink 1s step-end infinite;
-    }
-
-    .output code .cursor.typing {
-      animation: none;
-      background: var(--accent);
-    }
-
     @keyframes blink {
       0%, 100% { opacity: 1; }
       50% { opacity: 0; }
     }
-
-    .output.error code { color: var(--output-code-error); }
-    .output.success code { color: var(--output-code-success); }
 
     .code-comparison {
       display: flex;
@@ -395,15 +341,6 @@
       from { opacity: 0; transform: translateY(8px); }
       to { opacity: 1; transform: translateY(0); }
     }
-
-    @keyframes successPop {
-      0% { transform: scale(0.8); opacity: 0; }
-      50% { transform: scale(1.05); }
-      100% { transform: scale(1); opacity: 1; }
-    }
-
-    .output.show { animation: slideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1); }
-    .output.success.show { animation: slideIn 0.3s cubic-bezier(0.25, 1, 0.5, 1), successPop 0.4s cubic-bezier(0.34, 1.56, 0.64, 1); }
 
     .controls {
       display: flex;
@@ -606,8 +543,6 @@
 
     @media (prefers-reduced-motion: reduce) {
       *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
-      .output.show { animation: none; }
-      .output.success.show { animation: none; }
       button { transition: none; }
       button:hover { transform: none; box-shadow: none; }
       button:active { transform: none; }
@@ -615,7 +550,6 @@
       .example-btn:hover { transform: none; box-shadow: none; }
       .example-btn:active { transform: none; }
       .example-btn::before { display: none; }
-      .output code .cursor { animation: none; background: transparent; width: 0; }
     }
   </style>
 </head>
@@ -788,14 +722,6 @@
       } else if (code.startsWith('def ')) {
         state.rawPane.classList.add('success');
       }
-    }
-
-    function typeOutput(code, isError = false) {
-      const displayCode = code
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;') + '<span class="cursor"></span>';
-      state.codeOutput.innerHTML = displayCode;
     }
 
     async function streamCode(code, isError = false) {

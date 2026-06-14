@@ -1,9 +1,6 @@
-"""Secrets detection and redaction Validator."""
-
 import re
 
 class SecretsValidator:
-    """Detects and auto-redacts hardcoded secrets."""
     name = "code/secrets_exposure"
 
     SECRET_PATTERNS = {
@@ -17,7 +14,6 @@ class SecretsValidator:
     }
 
     def validate(self, code: str) -> tuple[bool, str | None, str | None]:
-        """Detect secrets and provide redacted version."""
         issues = []
         redacted = code
 

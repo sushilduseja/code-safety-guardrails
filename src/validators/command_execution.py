@@ -1,10 +1,7 @@
-"""Command execution detection Validator."""
-
 import ast
 import re
 
 class CommandExecutionValidator:
-    """Detects dangerous command execution patterns."""
     name = "code/command_execution"
 
     DANGEROUS_CALLS = {
@@ -20,10 +17,8 @@ class CommandExecutionValidator:
     SHELL_TRUE_PATTERN = re.compile(r'shell\s*=\s*True')
 
     def validate(self, code: str) -> tuple[bool, str | None, str | None]:
-        """Check for dangerous execution patterns."""
         issues = []
 
-        # AST-based detection
         try:
             tree = ast.parse(code)
             for node in ast.walk(tree):
@@ -37,7 +32,6 @@ class CommandExecutionValidator:
                 if re.search(rf'\b{re.escape(func)}\s*\(', code):
                     issues.append(f"{func} detected")
 
-        # Check for shell=True parameter
         if self.SHELL_TRUE_PATTERN.search(code):
             issues.append("shell=True allows shell injection")
 
@@ -48,7 +42,6 @@ class CommandExecutionValidator:
         return True, None, None
 
     def _get_call_name(self, node: ast.Call) -> str:
-        """Extract function name from AST Call node."""
         if isinstance(node.func, ast.Attribute):
             if isinstance(node.func.value, ast.Name):
                 return f"{node.func.value.id}.{node.func.attr}"
@@ -57,7 +50,6 @@ class CommandExecutionValidator:
         return ""
 
     def _sanitize(self, code: str) -> str | None:
-        """Apply only conservative fixes that preserve the original call shape."""
         if "os.system" in code:
             return None
         if self.SHELL_TRUE_PATTERN.search(code):

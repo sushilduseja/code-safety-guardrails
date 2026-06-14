@@ -1,5 +1,3 @@
-"""API-level regression tests for request handling and pipeline behavior."""
-
 import asyncio
 import json
 from pathlib import Path
@@ -13,8 +11,6 @@ from src.pipeline import PipelineResult
 
 
 class StubGroqClient:
-    """Lightweight GroqClient-compatible stub for API tests.
-    Has the same generate_code interface as the real GroqClient."""
 
     def __init__(self, code: str) -> None:
         self.code = code
@@ -42,7 +38,6 @@ def load_registry() -> dict[str, str]:
 
 
 def setup_default_state():
-    """Set up app.state with DemoCodeGenerator + null telemetry."""
     from src.telemetry import Telemetry, NullAuditAdapter, NullMetricsAdapter
     from src.generator import DemoCodeGenerator
 
@@ -70,8 +65,8 @@ def test_generate_fails_closed_when_validation_raises():
         )
 
     import src.main as mm
-    monkey_original = mm.get_pipeline
-    mm.get_pipeline = fake_get_pipeline
+    monkey_original = mm.create_code_guard
+    mm.create_code_guard = lambda strict=False: fake_get_pipeline()
     try:
         response = request_json(
             "POST",
@@ -86,7 +81,7 @@ def test_generate_fails_closed_when_validation_raises():
         assert body["protected_code"] == ""
         assert body["issues"][0]["validator"] == "pipeline"
     finally:
-        mm.get_pipeline = monkey_original
+        mm.create_code_guard = monkey_original
         clear_overrides()
 
 
@@ -113,8 +108,8 @@ def test_generate_returns_validator_specific_failures():
     )
 
     import src.main as mm
-    monkey_original = mm.get_pipeline
-    mm.get_pipeline = lambda strict=False: SimpleNamespace(validate=lambda code: validation, validators=[SimpleNamespace(name="t")])
+    monkey_original = mm.create_code_guard
+    mm.create_code_guard = lambda strict=False: SimpleNamespace(validate=lambda code: validation, validators=[SimpleNamespace(name="t")])
     try:
         response = request_json(
             "POST",
@@ -134,7 +129,7 @@ def test_generate_returns_validator_specific_failures():
             }
         ]
     finally:
-        mm.get_pipeline = monkey_original
+        mm.create_code_guard = monkey_original
         clear_overrides()
 
 
@@ -239,8 +234,8 @@ def test_generate_strips_markdown_fences_before_validation():
     main_module.app.dependency_overrides[get_code_generator] = lambda: RealCodeGenerator(stub)  # type: ignore[arg-type]
 
     import src.main as mm
-    monkey_original_pipeline = mm.get_pipeline
-    mm.get_pipeline = lambda strict=False: SimpleNamespace(
+    monkey_original = mm.create_code_guard
+    mm.create_code_guard = lambda strict=False: SimpleNamespace(
         validate=lambda code: PipelineResult(passed=True, issues=[], validated_output=code),
         validators=[SimpleNamespace(name="test")],
     )
@@ -258,5 +253,5 @@ def test_generate_strips_markdown_fences_before_validation():
         assert body["protected_code"] == "def is_prime(n):\n    return n > 1"
         assert body["issues"] == []
     finally:
-        mm.get_pipeline = monkey_original_pipeline
+        mm.create_code_guard = monkey_original
         clear_overrides()

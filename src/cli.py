@@ -1,6 +1,4 @@
 import argparse
-import sys
-import hashlib
 from src.db import init_db, issue_key, connect
 
 def main():

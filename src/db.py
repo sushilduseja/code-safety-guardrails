@@ -1,6 +1,10 @@
 import sqlite3, hashlib, secrets
 from contextlib import contextmanager
 
+
+def sha256hex(s: str) -> str:
+    return hashlib.sha256(s.encode()).hexdigest()
+
 DB_PATH = "guardrails.db"
 
 def init_db():
@@ -43,13 +47,13 @@ def connect():
 
 def issue_key(tenant_id: str, rpm: int = 60) -> str:
     raw = secrets.token_urlsafe(32)
-    h   = hashlib.sha256(raw.encode()).hexdigest()
+    h   = sha256hex(raw)
     with connect() as conn:
         conn.execute("INSERT INTO api_keys VALUES (?,?,?,datetime('now'),NULL)", (h, tenant_id, rpm))
     return raw   # shown once, never stored
 
 def resolve_key(raw: str) -> sqlite3.Row | None:
-    h = hashlib.sha256(raw.encode()).hexdigest()
+    h = sha256hex(raw)
     with connect() as conn:
         return conn.execute(
             "SELECT * FROM api_keys WHERE key_hash=? AND revoked_at IS NULL", (h,)

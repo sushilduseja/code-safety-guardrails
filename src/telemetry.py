@@ -1,5 +1,3 @@
-"""Telemetry seams — audit logging and metrics recording with test isolation."""
-
 import json
 import logging
 from typing import Protocol
@@ -10,7 +8,6 @@ logger = logging.getLogger(__name__)
 
 
 class AuditAdapter(Protocol):
-    """Seam for recording audit log entries."""
 
     async def record(
         self,
@@ -29,7 +26,6 @@ class AuditAdapter(Protocol):
 
 
 class NullAuditAdapter:
-    """No-op audit adapter for tests."""
 
     async def record(
         self,
@@ -49,7 +45,6 @@ class NullAuditAdapter:
 
 
 class SQLiteAuditAdapter:
-    """Writes audit log entries to the SQLite audit_log table."""
 
     async def record(
         self,
@@ -82,7 +77,6 @@ class SQLiteAuditAdapter:
 
 
 class MetricsAdapter(Protocol):
-    """Seam for recording and rendering operational metrics."""
 
     def record(
         self,
@@ -96,7 +90,6 @@ class MetricsAdapter(Protocol):
 
 
 class NullMetricsAdapter:
-    """No-op metrics adapter for tests."""
 
     def record(
         self,
@@ -112,7 +105,6 @@ class NullMetricsAdapter:
 
 
 class PrometheusMetricsAdapter:
-    """Stores request metrics in-memory and renders Prometheus-format text."""
 
     def __init__(self) -> None:
         self._requests_total: dict[tuple[str, bool], int] = {}
@@ -157,7 +149,6 @@ class PrometheusMetricsAdapter:
 
 
 class Telemetry:
-    """Wraps audit and metrics adapters with a single record() call."""
 
     def __init__(
         self,

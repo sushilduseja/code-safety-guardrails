@@ -1,10 +1,7 @@
-"""SQL Injection detection Validator."""
-
 import re
 import ast
 
 class _SQLRewriter(ast.NodeTransformer):
-    """Rewrites f-string SQL inside cursor.execute() calls to parameterized form."""
 
     def visit_Call(self, node: ast.Call) -> ast.AST:
         self.generic_visit(node)
@@ -14,12 +11,11 @@ class _SQLRewriter(ast.NodeTransformer):
         if not node.args:
             return node
         first_arg = node.args[0]
-        if not isinstance(first_arg, ast.JoinedStr):  # f-string
+        if not isinstance(first_arg, ast.JoinedStr):
             return node
         template, params = self._extract_fstring(first_arg)
         if not params:
             return node
-        # Replace f-string with plain string using ? placeholders
         node.args[0] = ast.Constant(value=template)
         param_tuple = ast.Tuple(elts=[ast.Name(id=p, ctx=ast.Load()) for p in params], ctx=ast.Load())
         if len(node.args) == 1:
@@ -50,7 +46,6 @@ def rewrite_sql(code: str) -> str | None:
         return None
 
 class SQLInjectionValidator:
-    """Detects SQL injection vulnerabilities in generated code."""
     name = "code/sql_injection"
 
     UNSAFE_PATTERNS = [
@@ -69,7 +64,6 @@ class SQLInjectionValidator:
     ]
 
     def validate(self, code: str) -> tuple[bool, str | None, str | None]:
-        """Check for unsafe SQL patterns."""
         issues = []
 
         for pattern, desc in self.UNSAFE_PATTERNS:

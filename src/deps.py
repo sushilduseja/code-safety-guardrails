@@ -1,5 +1,3 @@
-"""FastAPI Depends() injection functions for seams constructed at startup."""
-
 from fastapi import Request
 
 from src.generator import CodeGenerator

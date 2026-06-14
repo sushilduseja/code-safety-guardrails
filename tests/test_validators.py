@@ -1,9 +1,6 @@
-"""Unit tests for custom CodeValidator pipeline."""
-
 import pytest
 import ast
 
-from src.pipeline import ValidatorPipeline
 from src.validators.sql_injection import SQLInjectionValidator
 from src.validators.command_execution import CommandExecutionValidator
 from src.validators.secrets_scanner import SecretsValidator
@@ -12,7 +9,6 @@ from src.validators.factory import create_code_guard
 
 
 class TestSQLInjectionValidator:
-    """Test SQL injection detection."""
 
     @pytest.fixture
     def validator(self):
@@ -53,7 +49,6 @@ class TestSQLInjectionValidator:
 
 
 class TestCommandExecutionValidator:
-    """Test command execution detection."""
 
     @pytest.fixture
     def validator(self):
@@ -97,7 +92,6 @@ class TestCommandExecutionValidator:
 
 
 class TestSecretsValidator:
-    """Test secrets detection and redaction."""
 
     @pytest.fixture
     def validator(self):
@@ -139,7 +133,6 @@ class TestSecretsValidator:
 
 
 class TestMaliciousImportsValidator:
-    """Test import security detection."""
 
     @pytest.fixture
     def validator(self):
@@ -192,7 +185,6 @@ class TestMaliciousImportsValidator:
 
 
 class TestComposedGuard:
-    """Test full Guard validation pipeline."""
 
     def test_safe_code_passes(self):
         pipeline = create_code_guard()

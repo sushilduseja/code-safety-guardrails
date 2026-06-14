@@ -1,18 +1,14 @@
-"""CodeGenerator seam — code generation with demo bypass and real generation adapters."""
-
 from typing import Protocol
 
 from src.groq_client import GroqClient
 
 
 class CodeGenerator(Protocol):
-    """Seam for code generation. Callers call generate(); adapters decide how."""
 
     async def generate(self, prompt: str, language: str = "python") -> str: ...
 
 
 class RealCodeGenerator:
-    """Adapter that calls the Groq API and normalizes the output."""
 
     def __init__(self, client: GroqClient) -> None:
         self._client = client
@@ -23,8 +19,6 @@ class RealCodeGenerator:
 
 
 class DemoCodeGenerator:
-    """Adapter that returns canned code from a registry for known prompts,
-    falling back to a wrapped CodeGenerator for unmatched prompts."""
 
     def __init__(
         self,

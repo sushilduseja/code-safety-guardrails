@@ -1,4 +1,4 @@
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Protocol
 
 @dataclass
@@ -16,7 +16,6 @@ class PipelineResult:
 class CodeValidator(Protocol):
     name: str
     def validate(self, code: str) -> tuple[bool, str | None, str | None]:
-        # returns (passed, fix_value_or_none, error_message_or_none)
         ...
 
 class ValidatorPipeline:

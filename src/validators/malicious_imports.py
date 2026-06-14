@@ -1,9 +1,6 @@
-"""Malicious imports detection Validator."""
-
 import ast
 
 class MaliciousImportsValidator:
-    """Detects dangerous imports via AST analysis."""
     name = "code/malicious_imports"
 
     BLOCKED_MODULES = {
@@ -25,7 +22,6 @@ class MaliciousImportsValidator:
         self.strict = strict
 
     def validate(self, code: str) -> tuple[bool, str | None, str | None]:
-        """Detect blacklisted and network imports."""
         try:
             tree = ast.parse(code)
         except SyntaxError as e:
@@ -58,7 +54,6 @@ class MaliciousImportsValidator:
                 issues.append(f"Restricted (strict): {mod}")
 
         if issues:
-            # no fix possible for imports unless we strip them
             return False, None, f"Import security issues: {'; '.join(issues)}"
 
         return True, None, None
